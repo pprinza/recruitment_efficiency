@@ -1,5 +1,5 @@
 # ==========================================================
-# Recruitment Efficiency Modeling Dashboard (ZIP model loader)
+# Recruitment Efficiency Modeling Dashboard (Multi-Model)
 # ==========================================================
 
 import streamlit as st
@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.express as px
-import zipfile
 import os
 
 # ----------------------------
@@ -34,31 +33,16 @@ This dashboard supports three HR business objectives:
 """)
 
 # ----------------------------
-# LOAD MODEL FROM ZIP
+# LOAD MODELS
 # ----------------------------
 @st.cache_resource
 def load_model():
     try:
-        zip_path = "model.joblib.zip"       # your zip file
-        extract_path = "."                  # extraction target folder
-        extracted_model_path = os.path.join(extract_path, "model.joblib")
-
-        # Create folder if missing
-        os.makedirs(extract_path, exist_ok=True)
-
-        # Extract the ZIP if model not already extracted
-        if not os.path.exists(extracted_model_path):
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(extract_path)
-                st.info("📦 Model extracted successfully.")
-
-        # Load model
-        models = joblib.load(extracted_model_path)
-        st.success("✅ Model loaded successfully from ZIP!")
+        models = joblib.load("model_recruitment.pkl")
+        st.success("✅ All models loaded successfully!")
         return models
-
     except Exception as e:
-        st.error(f"❌ Error loading model from ZIP: {e}")
+        st.error(f"❌ Error loading model_recruitment.pkl: {e}")
         return None
 
 models = load_model()
@@ -66,17 +50,22 @@ models = load_model()
 # ----------------------------
 # UPLOAD DATA
 # ----------------------------
-uploaded_file = st.file_uploader("Upload your recruitment dataset (CSV)", type=["csv"])
+uploaded_file = st.file_uploader("📂 Upload your recruitment dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
+    # Read data
     df = pd.read_csv(uploaded_file)
-    st.subheader("Data Preview")
+
+    # ----------------------------
+    # DATA PREVIEW
+    # ----------------------------
+    st.subheader("🔍 Data Preview")
     st.dataframe(df.head())
 
     # ----------------------------
     # KEY METRICS OVERVIEW
     # ----------------------------
-    st.subheader("Key Metrics Overview")
+    st.subheader("📈 Key Metrics Overview")
     col1, col2, col3 = st.columns(3)
 
     avg_duration = round(df["hiring_duration"].mean(), 1) if "hiring_duration" in df.columns else "-"
@@ -90,27 +79,42 @@ if uploaded_file is not None:
     # ----------------------------
     # VISUALIZATION SECTION
     # ----------------------------
-    st.subheader("Recruitment Insights")
+    st.subheader("📊 Recruitment Insights")
 
     if "department" in df.columns and "cost_per_hire" in df.columns:
-        fig = px.bar(df, x="department", y="cost_per_hire", color="department",
-                     title="Average Cost per Hire by Department")
+        fig = px.bar(
+            df,
+            x="department",
+            y="cost_per_hire",
+            color="department",
+            title="Average Cost per Hire by Department"
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     if "source" in df.columns and "hiring_duration" in df.columns:
-        fig2 = px.box(df, x="source", y="hiring_duration", color="source",
-                      title="Hiring Duration by Source")
+        fig2 = px.box(
+            df,
+            x="source",
+            y="hiring_duration",
+            color="source",
+            title="Hiring Duration by Source"
+        )
         st.plotly_chart(fig2, use_container_width=True)
 
     if "job_level" in df.columns and "acceptance_rate" in df.columns:
-        fig3 = px.bar(df, x="job_level", y="acceptance_rate", color="job_level",
-                      title="Offer Acceptance Rate by Job Level")
+        fig3 = px.bar(
+            df,
+            x="job_level",
+            y="acceptance_rate",
+            color="job_level",
+            title="Offer Acceptance Rate by Job Level"
+        )
         st.plotly_chart(fig3, use_container_width=True)
 
     # ----------------------------
     # PREDICTION SECTION
     # ----------------------------
-    st.subheader("Predict Recruitment Outcomes")
+    st.subheader("🤖 Predict Recruitment Outcomes")
 
     if models:
         model_choice = st.radio(
@@ -118,27 +122,27 @@ if uploaded_file is not None:
             ["Hiring Duration", "Cost per Hire", "Offer Acceptance Rate"]
         )
 
-        # Automatically detect numeric & categorical columns
-        X_input = df.select_dtypes(include=[np.number, "object"])
-
         if st.button("Run Prediction"):
             try:
+                X_input = df.select_dtypes(include=[np.number, "object"])
+
+                # Prediction logic
                 if model_choice == "Hiring Duration":
                     preds = models["hiring_duration"].predict(X_input)
                     df["Predicted_Hiring_Duration"] = preds
-                    st.success("Hiring Duration predicted successfully!")
+                    st.success("✅ Hiring Duration predicted successfully!")
                     st.dataframe(df[["Predicted_Hiring_Duration"]].head())
 
                 elif model_choice == "Cost per Hire":
                     preds = models["cost_per_hire"].predict(X_input)
                     df["Predicted_Cost_per_Hire"] = preds
-                    st.success("Cost per Hire predicted successfully!")
+                    st.success("✅ Cost per Hire predicted successfully!")
                     st.dataframe(df[["Predicted_Cost_per_Hire"]].head())
 
-                else:  # Offer Acceptance Rate
+                else:
                     preds = models["acceptance_rate"].predict_proba(X_input)[:, 1]
                     df["Predicted_Acceptance_Prob"] = preds
-                    st.success("Offer Acceptance Probability predicted successfully!")
+                    st.success("✅ Offer Acceptance Probability predicted successfully!")
                     st.dataframe(df[["Predicted_Acceptance_Prob"]].head())
 
                 # ----------------------------
@@ -146,20 +150,32 @@ if uploaded_file is not None:
                 # ----------------------------
                 st.markdown("### 📉 Prediction Summary")
                 if "Predicted_Hiring_Duration" in df:
-                    st.metric("Avg Predicted Hiring Duration (days)",
-                              round(df["Predicted_Hiring_Duration"].mean(), 2))
+                    st.metric(
+                        "Avg Predicted Hiring Duration (days)",
+                        round(df["Predicted_Hiring_Duration"].mean(), 2)
+                    )
                 if "Predicted_Cost_per_Hire" in df:
-                    st.metric("Avg Predicted Cost per Hire ($)",
-                              round(df["Predicted_Cost_per_Hire"].mean(), 2))
+                    st.metric(
+                        "Avg Predicted Cost per Hire ($)",
+                        round(df["Predicted_Cost_per_Hire"].mean(), 2)
+                    )
                 if "Predicted_Acceptance_Prob" in df:
-                    st.metric("Avg Predicted Acceptance Probability (%)",
-                              round(df["Predicted_Acceptance_Prob"].mean() * 100, 2))
+                    st.metric(
+                        "Avg Predicted Acceptance Probability (%)",
+                        round(df["Predicted_Acceptance_Prob"].mean() * 100, 2)
+                    )
 
             except Exception as e:
                 st.error(f"Prediction failed: {e}")
 
-else:
-    st.info("Please upload a CSV file to begin analysis.")
+    else:
+        st.warning("⚠️ Model not loaded. Please ensure 'model_recruitment.pkl' is in the same folder as this app.")
 
+else:
+    st.info("👆 Please upload a CSV file to begin analysis and predictions.")
+
+# ----------------------------
+# FOOTER
+# ----------------------------
 st.markdown("---")
 st.caption("Developed for HR Analytics — Recruitment Efficiency Modeling © 2025")
