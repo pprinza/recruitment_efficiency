@@ -40,7 +40,7 @@ This dashboard supports three HR business objectives:
 def load_model():
     try:
         zip_path = "model.joblib.zip"       # your zip file
-        extract_path = ""                  # extraction target folder
+        extract_path = "."                  # extraction target folder
         extracted_model_path = os.path.join(extract_path, "model.joblib")
 
         # Create folder if missing
