@@ -1,5 +1,5 @@
 # ============================
-# Recruitment Efficiency Modeling App
+# Recruitment Efficiency Modeling App (Final Version)
 # ============================
 
 import streamlit as st
@@ -68,20 +68,40 @@ if uploaded_file is not None:
     with col2:
         st.metric("Avg Cost per Hire ($)", round(df["cost_per_hire"].mean(), 1) if "cost_per_hire" in df else "-")
     with col3:
-        st.metric("Offer Acceptance Rate (%)", f"{round(df['acceptance_rate'].mean()*100, 1)}%" if "acceptance_rate" in df else "-")
+        # Support both "acceptance_rate" and "offer_acceptance_rate"
+        acc_col = "acceptance_rate" if "acceptance_rate" in df else (
+            "offer_acceptance_rate" if "offer_acceptance_rate" in df else None
+        )
+        if acc_col:
+            st.metric("Offer Acceptance Rate (%)", f"{round(df[acc_col].mean() * 100, 1)}%")
+        else:
+            st.metric("Offer Acceptance Rate (%)", "-")
 
     # ----------------------------
     # VISUALIZATION
     # ----------------------------
     st.subheader("Recruitment Insights")
 
+    # Cost per Hire by Department
     if "department" in df and "cost_per_hire" in df:
-        fig = px.bar(df, x="department", y="cost_per_hire", title="Average Cost per Hire by Department", color="department")
+        fig = px.bar(df, x="department", y="cost_per_hire",
+                     title="Average Cost per Hire by Department", color="department")
         st.plotly_chart(fig, use_container_width=True)
 
+    # Hiring Duration by Source
     if "source" in df and "hiring_duration" in df:
-        fig2 = px.box(df, x="source", y="hiring_duration", title="Hiring Duration by Source", color="source")
+        fig2 = px.box(df, x="source", y="hiring_duration",
+                      title="Hiring Duration by Source", color="source")
         st.plotly_chart(fig2, use_container_width=True)
+
+    # Offer Acceptance Rate by Department
+    acc_col = "acceptance_rate" if "acceptance_rate" in df else (
+        "offer_acceptance_rate" if "offer_acceptance_rate" in df else None
+    )
+    if acc_col and "department" in df:
+        fig3 = px.box(df, x="department", y=acc_col, color="department",
+                      title="Offer Acceptance Rate by Department")
+        st.plotly_chart(fig3, use_container_width=True)
 
     # ----------------------------
     # PREDICTION SECTION
@@ -90,23 +110,28 @@ if uploaded_file is not None:
         st.subheader("Predict Recruitment Efficiency")
 
         num_df = df.select_dtypes(include=[np.number])
+
         if st.button("Run Prediction"):
-            preds = model.predict(num_df)
-            df["Predicted_Efficiency"] = preds
-            st.success("Prediction complete!")
-            st.dataframe(df[["Predicted_Efficiency"]].head())
+            try:
+                preds = model.predict(num_df)
+                df["Predicted_Efficiency"] = preds
+                st.success("Prediction complete!")
+                st.dataframe(df[["Predicted_Efficiency"]].head())
 
-            # ----------------------------
-            # SHAP EXPLAINABILITY
-            # ----------------------------
-            st.subheader("🔍 Model Explainability (SHAP)")
-            explainer = shap.Explainer(model)
-            shap_values = explainer(num_df)
+                # ----------------------------
+                # SHAP EXPLAINABILITY
+                # ----------------------------
+                st.subheader("🔍 Model Explainability (SHAP)")
+                explainer = shap.Explainer(model)
+                shap_values = explainer(num_df)
 
-            st.write("### Feature Importance Overview")
-            fig, ax = plt.subplots()
-            shap.summary_plot(shap_values, num_df, show=False)
-            st.pyplot(fig)
+                st.write("### Feature Importance Overview")
+                fig, ax = plt.subplots()
+                shap.summary_plot(shap_values, num_df, show=False)
+                st.pyplot(fig)
+
+            except Exception as e:
+                st.error(f"Prediction failed. Check input columns. Details: {e}")
 
 else:
-    st.info("Upload your dataset in CSV format to begin analysis.")
+    st.info("📂 Upload your dataset in CSV format to begin analysis.")
