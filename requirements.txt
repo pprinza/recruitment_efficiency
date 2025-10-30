@@ -1,9 +1,6 @@
+streamlit==1.38.0
 scikit-learn==1.5.1
-streamlit
 pandas
 numpy
-scikit-learn
-matplotlib
 plotly
-shap
 joblib
