@@ -22,14 +22,14 @@ st.set_page_config(
 # ----------------------------
 # TITLE & DESCRIPTION
 # ----------------------------
-st.title("📊 Recruitment Efficiency Modeling Dashboard")
+st.title("Recruitment Efficiency Modeling Dashboard")
 st.markdown("""
 This interactive web app helps HR teams analyze and predict **recruitment efficiency** using machine learning.
 It supports three main business goals:
 
-- ⏱️ Reduce Hiring Duration  
-- 💵 Reduce Cost per Hire  
-- 🎯 Increase Offer Acceptance Rate  
+- Reduce Hiring Duration  
+- Reduce Cost per Hire  
+- Increase Offer Acceptance Rate  
 ---
 """)
 
@@ -42,7 +42,7 @@ def load_model():
         model = joblib.load("model_recruitment.pkl")
         return model
     except:
-        st.warning("⚠️ No model file found (model_recruitment.pkl). The app will still display analytics.")
+        st.warning("No model file found (model_recruitment.pkl). The app will still display analytics.")
         return None
 
 model = load_model()
@@ -50,17 +50,17 @@ model = load_model()
 # ----------------------------
 # UPLOAD DATA
 # ----------------------------
-uploaded_file = st.file_uploader("📂 Upload your recruitment dataset (CSV)", type=["csv"])
+uploaded_file = st.file_uploader("Upload your recruitment dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-    st.subheader("📋 Data Preview")
+    st.subheader("Data Preview")
     st.dataframe(df.head())
 
     # ----------------------------
     # BASIC STATS
     # ----------------------------
-    st.subheader("📊 Key Metrics Overview")
+    st.subheader("Key Metrics Overview")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -73,7 +73,7 @@ if uploaded_file is not None:
     # ----------------------------
     # VISUALIZATION
     # ----------------------------
-    st.subheader("📈 Recruitment Insights")
+    st.subheader("Recruitment Insights")
 
     if "department" in df and "cost_per_hire" in df:
         fig = px.bar(df, x="department", y="cost_per_hire", title="Average Cost per Hire by Department", color="department")
@@ -87,13 +87,13 @@ if uploaded_file is not None:
     # PREDICTION SECTION
     # ----------------------------
     if model is not None:
-        st.subheader("🤖 Predict Recruitment Efficiency")
+        st.subheader("Predict Recruitment Efficiency")
 
         num_df = df.select_dtypes(include=[np.number])
         if st.button("Run Prediction"):
             preds = model.predict(num_df)
             df["Predicted_Efficiency"] = preds
-            st.success("✅ Prediction complete!")
+            st.success("Prediction complete!")
             st.dataframe(df[["Predicted_Efficiency"]].head())
 
             # ----------------------------
@@ -109,4 +109,4 @@ if uploaded_file is not None:
             st.pyplot(fig)
 
 else:
-    st.info("👆 Upload your dataset in CSV format to begin analysis.")
+    st.info("Upload your dataset in CSV format to begin analysis.")
