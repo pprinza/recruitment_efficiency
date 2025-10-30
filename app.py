@@ -34,17 +34,41 @@ It supports three main business goals:
 """)
 
 # ----------------------------
-# LOAD MODEL
+# LOAD MODEL (Updated - No Cache + Auto Validation)
 # ----------------------------
-@st.cache_resource
+import joblib
+
 def load_model():
+    """
+    Load trained recruitment efficiency model.
+    This version ensures no old cache remains active and verifies model validity.
+    """
     try:
         model = joblib.load("model_recruitment.pkl")
+        
+        # Cek apakah model sesuai dengan domain recruitment
+        if hasattr(model, "feature_names_in_"):
+            feature_names = list(model.feature_names_in_)
+            # Jika masih ada kolom 'Latitude' atau 'MedInc', berarti model salah
+            invalid_features = {"Latitude", "Longitude", "MedInc", "AveRooms", "AveBedrms"}
+            if any(f in invalid_features for f in feature_names):
+                st.error("The loaded model is not the Recruitment Efficiency model. "
+                         "Please re-upload the correct `model_recruitment.pkl` to GitHub.")
+                return None
+        
+        st.success("Recruitment Efficiency model loaded successfully!")
         return model
-    except:
-        st.warning("No model file found (model_recruitment.pkl). The app will still display analytics.")
+
+    except FileNotFoundError:
+        st.warning("No model file found (`model_recruitment.pkl`). "
+                   "The app will still display analytics without predictions.")
+        return None
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
         return None
 
+
+# Load model saat startup
 model = load_model()
 
 # ----------------------------
