@@ -12,14 +12,16 @@ import numpy as np
 # ----------------------------------------------------------
 # PAGE CONFIGURATION
 # ----------------------------------------------------------
-st.set_page_config(page_title="Recruitment Efficiency Dashboard", page_icon="💼", layout="wide")
+st.set_page_config(page_title="Recruitment Efficiency Dashboard", layout="wide")
 st.title("Recruitment Efficiency Insight Dashboard")
+
 st.markdown("""
-This dashboard summarizes **the most efficient departments, sources, and job roles**
-based on three recruitment KPIs:
+This dashboard helps HR teams understand which departments, sources, and job roles 
+contribute most to overall recruitment efficiency based on three key metrics:
+
 - Time to Hire  
 - Cost per Hire  
-- Offer Acceptance Rate  
+- Offer Acceptance Rate
 """)
 
 # ----------------------------------------------------------
@@ -55,9 +57,9 @@ df = compute_efficiency(df)
 # ----------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Executive Summary",
-    "Department Insights",
-    "Source Insights",
-    "Job Role Insights",
+    "Department Efficiency",
+    "Source Efficiency",
+    "Job Role Efficiency",
     "Top 10 Most Efficient Recruitments"
 ])
 
@@ -78,8 +80,7 @@ with tab1:
 
     st.divider()
 
-    # The Most Efficient Highlights
-    st.markdown("### The Most Efficient Department")
+    st.subheader("The Most Efficient Department")
     best_dept = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -87,7 +88,7 @@ with tab1:
     )
     st.dataframe(best_dept.head(1).reset_index(), use_container_width=True, hide_index=True)
 
-    st.markdown("### The Most Cost-Effective Source")
+    st.subheader("The Most Efficient Source")
     best_source = (
         df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -95,7 +96,7 @@ with tab1:
     )
     st.dataframe(best_source.head(1).reset_index(), use_container_width=True, hide_index=True)
 
-    st.markdown("### The Most Efficient Job Title")
+    st.subheader("The Most Efficient Job Title")
     best_role = (
         df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -104,10 +105,10 @@ with tab1:
     st.dataframe(best_role.head(1).reset_index(), use_container_width=True, hide_index=True)
 
 # ==========================================================
-# DEPARTMENT INSIGHTS
+# DEPARTMENT EFFICIENCY
 # ==========================================================
 with tab2:
-    st.header("Department Efficiency")
+    st.header("Department Efficiency Overview (Sorted by Efficiency Score)")
     dept_summary = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -116,10 +117,10 @@ with tab2:
     st.dataframe(dept_summary.reset_index(), use_container_width=True, hide_index=True)
 
 # ==========================================================
-# SOURCE INSIGHTS
+# SOURCE EFFICIENCY
 # ==========================================================
 with tab3:
-    st.header("Source Effectiveness")
+    st.header("Source Efficiency Overview (Sorted by Efficiency Score)")
     source_summary = (
         df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -128,10 +129,10 @@ with tab3:
     st.dataframe(source_summary.reset_index(), use_container_width=True, hide_index=True)
 
 # ==========================================================
-# JOB ROLE INSIGHTS
+# JOB ROLE EFFICIENCY
 # ==========================================================
 with tab4:
-    st.header("Job Role Efficiency")
+    st.header("Job Role Efficiency Overview (Sorted by Efficiency Score)")
     job_summary = (
         df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
