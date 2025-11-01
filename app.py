@@ -199,11 +199,11 @@ with tab_top10:
         )
 
 # ==========================================================
-# BATCH PREDICTION TAB (Stable Version with Mean Feature Template)
+# BATCH PREDICTION TAB
 # ==========================================================
 with tab_predict:
     st.header("Batch Prediction — Recruitment Outcome Estimator")
-    st.markdown("Gunakan model untuk memprediksi hasil berdasarkan *department* dan *source* yang dipilih.")
+    st.markdown("Gunakan model untuk memprediksi hasil berdasarkan *department*, *source*, dan *job title* yang dipilih.")
 
     # Pastikan model tersedia
     if not models_available:
@@ -212,44 +212,43 @@ with tab_predict:
         # Dropdown untuk input user
         dept_list = sorted(df['department'].dropna().unique())
         source_list = sorted(df['source'].dropna().unique())
+        job_list = sorted(df['job_title'].dropna().unique())
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         selected_dept = col1.selectbox("Pilih Department", dept_list)
         selected_source = col2.selectbox("Pilih Source", source_list)
+        selected_job = col3.selectbox("Pilih Job Title", job_list)
 
         # Tombol prediksi
         if st.button("Run Prediction"):
             try:
-                # Gunakan rata-rata semua fitur numerik untuk menjaga kestabilan distribusi input
+                # Gunakan mean sebagai template agar stabil
                 input_data = df.mean(numeric_only=True).to_frame().T
 
                 # Tambahkan kolom kategorikal sesuai input user
                 input_data["department"] = selected_dept
                 input_data["source"] = selected_source
+                input_data["job_title"] = selected_job
 
-                # Pastikan urutan kolom sama dengan data training
-                input_data = input_data[df.columns.intersection(input_data.columns)]
+                # Pastikan kolom input sesuai dengan data training
+                input_data = input_data.reindex(columns=df.columns, fill_value=0)
 
                 # Jalankan prediksi
                 pred_time = models["time"].predict(input_data)[0]
                 pred_cost = models["cost"].predict(input_data)[0]
                 pred_offer = models["offer"].predict(input_data)[0]
 
-                # Pastikan hasil prediksi tidak negatif dan proporsional
+                # Bersihkan nilai agar tidak negatif atau melebihi 1
                 pred_time = np.clip(pred_time, 0, None)
                 pred_cost = np.clip(pred_cost, 0, None)
                 pred_offer = np.clip(pred_offer, 0, 1)
 
-                # Tampilkan hasil prediksi langsung
+                # Tampilkan hasil prediksi
                 st.success("Prediction completed successfully.")
-
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
                 col2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
                 col3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
-
-                # Debug info opsional (bisa dihapus)
-                # st.write("Feature input digunakan model:", list(input_data.columns))
 
             except Exception as e:
                 st.error(f"Gagal menjalankan prediksi: {e}")
