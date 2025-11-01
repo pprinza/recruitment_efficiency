@@ -4,28 +4,14 @@
 # Author: NeuraLens
 # Purpose: Dnified Streamlit Dashboard for Analytical & Predictive Insight
 # =========================================================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 import os
 
-# ----------------------------------------------------------
-# PAGE CONFIGURATION
-# ----------------------------------------------------------
 st.set_page_config(page_title="Recruitment Efficiency Dashboard", layout="wide")
-st.title("Recruitment Efficiency Insight & Prediction App")
-
-st.markdown("""
-This application combines **analytical insights** and **real-time prediction**  
-based on the FEv3 Machine Learning model.
-
-Key objectives:
-- Reduce Time to Hire  
-- Optimize Cost Allocation  
-- Improve Candidate Engagement and Offer Acceptance  
-""")
+st.title("Recruitment Efficiency Insight Dashboard")
 
 # ----------------------------------------------------------
 # LOAD DATA
@@ -37,13 +23,26 @@ def load_data():
 
 df = load_data()
 
-required_cols = ['department', 'source', 'job_title', 'time_to_hire_days', 'cost_per_hire', 'offer_acceptance_rate']
-if not all(col in df.columns for col in required_cols):
-    st.error(f"Missing columns in dataset: {set(required_cols) - set(df.columns)}")
-    st.stop()
+# ----------------------------------------------------------
+# LOAD MODELS
+# ----------------------------------------------------------
+@st.cache_resource
+def load_models():
+    try:
+        models = {
+            "time": joblib.load("model_time_to_hire_days_FEv3.pkl"),
+            "cost": joblib.load("model_cost_per_hire_FEv3.pkl"),
+            "offer": joblib.load("model_offer_acceptance_rate_FEv3.pkl")
+        }
+        return models
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        return None
+
+models = load_models()
 
 # ----------------------------------------------------------
-# COMPUTE EFFICIENCY SCORE
+# FUNCTION — Compute Efficiency
 # ----------------------------------------------------------
 def compute_efficiency(df):
     df = df.copy()
@@ -56,21 +55,6 @@ def compute_efficiency(df):
 df = compute_efficiency(df)
 
 # ----------------------------------------------------------
-# LOAD TRAINED MODELS (for Prediction Tab)
-# ----------------------------------------------------------
-@st.cache_resource
-def load_models():
-    models = {
-        "time": joblib.load("model_time_to_hire_days_FEv3.pkl"),
-        "cost": joblib.load("model_cost_per_hire_FEv3.pkl"),
-        "offer": joblib.load("model_offer_acceptance_rate_FEv3.pkl")
-    }
-    return models
-
-
-models = load_models()
-
-# ----------------------------------------------------------
 # CREATE TABS
 # ----------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -79,11 +63,11 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Source Efficiency",
     "Job Role Efficiency",
     "Top 10 Most Efficient Recruitments",
-    "Prediction Tool"
+    "Batch Prediction"
 ])
 
 # ==========================================================
-# TAB 1 — EXECUTIVE SUMMARY
+# TAB 1-5: Existing
 # ==========================================================
 with tab1:
     st.header("Recruitment KPI Scorecard — Executive Overview")
@@ -98,118 +82,71 @@ with tab1:
     col3.metric("Offer Acceptance Rate (%)", f"{avg_accept}%")
 
     st.divider()
-    st.subheader("Top Performers")
+    st.subheader("The Most Efficient Department")
+    best_dept = df.groupby("department")[["time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
+    st.dataframe(best_dept.head(1).reset_index(), use_container_width=True)
 
-    best_dept = (
-        df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    ).head(1)
-
-    best_source = (
-        df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    ).head(1)
-
-    best_role = (
-        df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    ).head(1)
-
-    st.write("**Most Efficient Department:**")
-    st.dataframe(best_dept.reset_index(), hide_index=True, use_container_width=True)
-
-    st.write("**Most Efficient Source:**")
-    st.dataframe(best_source.reset_index(), hide_index=True, use_container_width=True)
-
-    st.write("**Most Efficient Job Role:**")
-    st.dataframe(best_role.reset_index(), hide_index=True, use_container_width=True)
-
-# ==========================================================
-# TAB 2 — DEPARTMENT EFFICIENCY
-# ==========================================================
 with tab2:
-    st.header("Department Efficiency (sorted by efficiency score)")
-    dept_summary = (
-        df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    )
-    st.dataframe(dept_summary.reset_index(), use_container_width=True, hide_index=True)
+    st.header("Department Efficiency Overview (Sorted by Efficiency Score)")
+    dept_summary = df.groupby("department")[["time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
+    st.dataframe(dept_summary.reset_index(), use_container_width=True)
 
-# ==========================================================
-# TAB 3 — SOURCE EFFICIENCY
-# ==========================================================
 with tab3:
-    st.header("Source Efficiency (sorted by efficiency score)")
-    source_summary = (
-        df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    )
-    st.dataframe(source_summary.reset_index(), use_container_width=True, hide_index=True)
+    st.header("Source Efficiency Overview (Sorted by Efficiency Score)")
+    source_summary = df.groupby("source")[["time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
+    st.dataframe(source_summary.reset_index(), use_container_width=True)
 
-# ==========================================================
-# TAB 4 — JOB ROLE EFFICIENCY
-# ==========================================================
 with tab4:
-    st.header("Job Role Efficiency (sorted by efficiency score)")
-    job_summary = (
-        df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-        .mean().sort_values("efficiency_score", ascending=False)
-    )
-    st.dataframe(job_summary.reset_index(), use_container_width=True, hide_index=True)
+    st.header("Job Role Efficiency Overview (Sorted by Efficiency Score)")
+    job_summary = df.groupby("job_title")[["time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
+    st.dataframe(job_summary.reset_index(), use_container_width=True)
 
-# ==========================================================
-# TAB 5 — TOP 10 MOST EFFICIENT RECRUITMENTS
-# ==========================================================
 with tab5:
     st.header("Top 10 Most Efficient Recruitments (Individual Level)")
     top10 = df.sort_values("efficiency_score", ascending=False).head(10)
-    top10_display = top10[
-        ["department", "source", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]
-    ]
-    st.dataframe(top10_display.reset_index(drop=True), use_container_width=True, hide_index=True)
+    st.dataframe(top10[["department","source","job_title","time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]],
+                 use_container_width=True)
 
 # ==========================================================
-# TAB 6 — PREDICTION TOOL
+# TAB 6: BATCH PREDICTION
 # ==========================================================
 with tab6:
-    st.header("Predict Recruitment Outcomes")
+    st.header("Batch Prediction — Predict Recruitment KPIs from CSV")
 
-    with st.form("prediction_form"):
-        department = st.selectbox("Department", ["Engineering", "Product", "HR", "Sales", "Marketing", "Finance"])
-        source = st.selectbox("Source", ["Referral", "LinkedIn", "Recruiter", "Job Portal"])
-        process_efficiency = st.slider("Process Efficiency", 0.0, 1.0, 0.7)
-        cost_intensity = st.slider("Cost Intensity", 0.0, 1.0, 0.5)
-        engagement_score = st.slider("Engagement Score", 0.0, 1.0, 0.6)
-        dept_efficiency = st.slider("Department Efficiency", 0.0, 1.0, 0.8)
-        offer_readiness = st.slider("Offer Readiness", 0.0, 1.0, 0.75)
-        candidate_satisfaction = st.slider("Candidate Satisfaction", 0.0, 1.0, 0.7)
-        submitted = st.form_submit_button("Run Prediction")
+    uploaded_file = st.file_uploader("Upload your recruitment dataset (CSV)", type=["csv"])
 
-    if submitted:
-        input_data = pd.DataFrame([{
-            "department": department,
-            "source": source,
-            "process_efficiency": process_efficiency,
-            "cost_intensity": cost_intensity,
-            "engagement_score": engagement_score,
-            "dept_efficiency": dept_efficiency,
-            "offer_readiness": offer_readiness,
-            "candidate_satisfaction": candidate_satisfaction
-        }])
+    if uploaded_file is not None:
+        data = pd.read_csv(uploaded_file)
+        st.subheader("Data Preview")
+        st.dataframe(data.head(), use_container_width=True)
 
-        time_pred = models["time"].predict(input_data)[0]
-        cost_pred = models["cost"].predict(input_data)[0]
-        offer_pred = models["offer"].predict(input_data)[0]
+        if models:
+            try:
+                # Run predictions
+                data["pred_time_to_hire_days"] = models["time"].predict(data)
+                data["pred_cost_per_hire"] = models["cost"].predict(data)
+                data["pred_offer_acceptance_rate"] = models["offer"].predict(data)
 
-        # Avoid negatives or >100%
-        time_pred = max(0, time_pred)
-        cost_pred = max(0, cost_pred)
-        offer_pred = max(0, min(1, offer_pred))
+                st.success("✅ Prediction completed successfully.")
+                st.dataframe(data.head(10), use_container_width=True)
 
-        st.subheader("Predicted Results")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Predicted Time to Hire (days)", f"{time_pred:.1f}")
-        col2.metric("Predicted Cost per Hire ($)", f"{cost_pred:,.2f}")
-        col3.metric("Offer Acceptance Rate (%)", f"{offer_pred*100:.1f}")
+                st.subheader("Summary Statistics (Predictions)")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Avg Predicted Time to Hire (days)", f"{data['pred_time_to_hire_days'].mean():.1f}")
+                col2.metric("Avg Predicted Cost per Hire ($)", f"{data['pred_cost_per_hire'].mean():,.0f}")
+                col3.metric("Avg Predicted Offer Acceptance Rate (%)", f"{data['pred_offer_acceptance_rate'].mean() * 100:.1f}%")
 
-        st.info("Prediction based on FEv3 model (Ridge, Lasso, XGBoost). Features standardized and preprocessed automatically.")
+                # Downloadable CSV
+                csv = data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Predictions CSV",
+                    data=csv,
+                    file_name="recruitment_predictions.csv",
+                    mime="text/csv"
+                )
+            except Exception as e:
+                st.error(f"Prediction failed: {e}")
+        else:
+            st.warning("Models not loaded. Please check your .pkl files in GitHub or Streamlit environment.")
+    else:
+        st.info("Upload a CSV file to run predictions.")
