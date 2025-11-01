@@ -118,7 +118,8 @@ with tab6:
     if uploaded_file is not None:
         data = pd.read_csv(uploaded_file)
         st.subheader("Data Preview")
-        st.dataframe(data.head(), use_container_width=True)
+        st.dataframe(data[["department", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]].head(),
+                     use_container_width=True)
 
         if models:
             try:
@@ -128,8 +129,19 @@ with tab6:
                 data["pred_offer_acceptance_rate"] = models["offer"].predict(data)
 
                 st.success("✅ Prediction completed successfully.")
-                st.dataframe(data.head(10), use_container_width=True)
 
+                # Select key columns for display
+                display_cols = [
+                    "department", "job_title",
+                    "time_to_hire_days", "pred_time_to_hire_days",
+                    "cost_per_hire", "pred_cost_per_hire",
+                    "offer_acceptance_rate", "pred_offer_acceptance_rate"
+                ]
+
+                st.subheader("Prediction Results (Key Metrics)")
+                st.dataframe(data[display_cols].head(10), use_container_width=True)
+
+                # Summary Metrics
                 st.subheader("Summary Statistics (Predictions)")
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Avg Predicted Time to Hire (days)", f"{data['pred_time_to_hire_days'].mean():.1f}")
@@ -137,13 +149,14 @@ with tab6:
                 col3.metric("Avg Predicted Offer Acceptance Rate (%)", f"{data['pred_offer_acceptance_rate'].mean() * 100:.1f}%")
 
                 # Downloadable CSV
-                csv = data.to_csv(index=False).encode('utf-8')
+                csv = data[display_cols].to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="Download Predictions CSV",
                     data=csv,
-                    file_name="recruitment_predictions.csv",
+                    file_name="recruitment_predictions_simplified.csv",
                     mime="text/csv"
                 )
+
             except Exception as e:
                 st.error(f"Prediction failed: {e}")
         else:
