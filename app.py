@@ -198,48 +198,55 @@ with tab_top10:
             use_container_width=True, hide_index=True,
         )
 
-# ----------------------------------------------------------
-# BATCH PREDICTION TAB
-# ----------------------------------------------------------
+# ==========================================================
+# BATCH PREDICTION TAB (Department & Source Input)
+# ==========================================================
 with tab_predict:
-    st.header("Batch Prediction (Upload CSV)")
-    st.write("Upload your recruitment dataset to predict Time to Hire, Cost per Hire, and Offer Acceptance Rate.")
+    st.header("Batch Prediction — Recruitment Outcome Estimator")
+    st.markdown("Gunakan model untuk memprediksi hasil berdasarkan *department* dan *source* yang dipilih.")
 
-    uploaded = st.file_uploader("Upload CSV", type=["csv"])
+    # Cek apakah model tersedia
+    if not models_available:
+        st.error("Model file (.pkl) tidak ditemukan. Silakan unggah model terlebih dahulu ke repository GitHub.")
+    else:
+        # Dropdown inputs
+        dept_list = sorted(df['department'].dropna().unique())
+        source_list = sorted(df['source'].dropna().unique())
 
-    if uploaded is not None:
-        user_df = pd.read_csv(uploaded)
-        st.subheader("Data Preview")
-        st.dataframe(user_df.head(), use_container_width=True)
+        col1, col2 = st.columns(2)
+        selected_dept = col1.selectbox("Pilih Department", dept_list)
+        selected_source = col2.selectbox("Pilih Source", source_list)
 
-        # try model prediction
-        if models_available:
-            preds = {}
-            for key, model in models.items():
-                if model is not None:
-                    try:
-                        preds[key] = model.predict(user_df)
-                    except Exception as e:
-                        preds[key] = None
-                        st.warning(f"Model '{key}' failed: {e}")
+        # Ambil contoh data dari dataset
+        example_df = df[(df['department'] == selected_dept) & (df['source'] == selected_source)].copy()
 
-            if any(v is not None for v in preds.values()):
+        if example_df.empty:
+            st.warning("Kombinasi data tidak ditemukan dalam dataset. Coba pilih kombinasi lain.")
+        else:
+            # Gunakan rata-rata dari kombinasi yang dipilih
+            input_row = example_df.mean(numeric_only=True).to_frame().T
+
+            st.write("**Input Sample (mean values):**")
+            st.dataframe(input_row, use_container_width=True)
+
+            try:
+                # Gunakan model pkl untuk prediksi
+                pred_time = models["time"].predict(input_row)[0]
+                pred_cost = models["cost"].predict(input_row)[0]
+                pred_offer = models["offer"].predict(input_row)[0]
+
+                # Pastikan semua prediksi positif
+                pred_time = np.clip(pred_time, 0, None)
+                pred_cost = np.clip(pred_cost, 0, None)
+                pred_offer = np.clip(pred_offer, 0, 1)
+
+                # Tampilkan hasil prediksi
                 st.success("Prediction completed successfully.")
 
-                # ✅ pastikan baris-baris berikut memiliki indentasi ini (4 spasi)
-                user_df["pred_time_to_hire_days"] = np.clip(preds.get("time", np.nan), 0, None)
-                user_df["pred_cost_per_hire"] = np.clip(preds.get("cost", np.nan), 0, None)
-                user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer", np.nan), 0, 1)
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
+                c2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
+                c3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
 
-                show_cols = [
-                    "department", "source", "job_title",
-                    "pred_time_to_hire_days", "pred_cost_per_hire",
-                    "pred_offer_acceptance_rate"
-                ]
-                st.dataframe(user_df[show_cols].head(20), use_container_width=True)
-            else:
-                st.error("All models failed to predict. Please check feature columns or model format.")
-        else:
-            st.warning("No model files found (.pkl). Only efficiency score will be shown.")
-            df_eff = compute_efficiency(user_df)
-            st.dataframe(df_eff.head(), use_container_width=True)
+            except Exception as e:
+                st.error(f"Gagal menjalankan prediksi: {e}")
