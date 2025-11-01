@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=ImportWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="Trying to unpickle estimator")
+
 
 # ==============================================
 # 1️⃣ LOAD MODEL
