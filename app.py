@@ -1,5 +1,5 @@
 # ==========================================================
-# Recruitment Efficiency Insight Dashboard
+# Recruitment Efficiency Insight Dashboard (FEv3++)
 # ==========================================================
 # Author: NeuraLens
 # Purpose: Data-Driven HR Insight — Department, Source, Job Title, and Individual Efficiency Ranking
@@ -7,14 +7,14 @@
 
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
 # ----------------------------------------------------------
 # Page setup
 # ----------------------------------------------------------
 st.set_page_config(
-    page_title="Recruitment Efficiency Insight — FEv3+",
+    page_title="Recruitment Efficiency Insight — FEv3++",
     page_icon="💼",
     layout="wide"
 )
@@ -45,7 +45,7 @@ if df is None:
     st.stop()
 
 # Sidebar info
-st.sidebar.header("📋 Data Info")
+st.sidebar.header("Data Info")
 st.sidebar.write("Detected Columns:")
 st.sidebar.write(list(df.columns))
 
@@ -74,20 +74,19 @@ tabs = st.tabs([
 # TAB 1 — Department Analysis
 # ==========================================================
 with tabs[0]:
-    st.subheader("Department Efficiency Overview")
+    st.subheader("🏢 Department Efficiency Overview")
 
     dept_summary = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]]
         .mean()
         .round(2)
         .sort_values("time_to_hire_days")
+        .reset_index()
     )
 
-    st.dataframe(dept_summary, use_container_width=True)
-
-    best_dept_time = dept_summary["time_to_hire_days"].idxmin()
-    best_dept_cost = dept_summary["cost_per_hire"].idxmin()
-    best_dept_accept = dept_summary["offer_acceptance_rate"].idxmax()
+    best_dept_time = dept_summary.loc[dept_summary["time_to_hire_days"].idxmin(), "department"]
+    best_dept_cost = dept_summary.loc[dept_summary["cost_per_hire"].idxmin(), "department"]
+    best_dept_accept = dept_summary.loc[dept_summary["offer_acceptance_rate"].idxmax(), "department"]
 
     st.markdown(f"""
     **Highlights:**
@@ -96,24 +95,25 @@ with tabs[0]:
     - Highest offer acceptance: **{best_dept_accept}**
     """)
 
+    st.dataframe(dept_summary, use_container_width=True)
+
 # ==========================================================
 # TAB 2 — Source Analysis
 # ==========================================================
 with tabs[1]:
-    st.subheader("Candidate Source Effectiveness")
+    st.subheader("🔗 Candidate Source Effectiveness")
 
     src_summary = (
         df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]]
         .mean()
         .round(2)
         .sort_values("cost_per_hire")
+        .reset_index()
     )
 
-    st.dataframe(src_summary, use_container_width=True)
-
-    best_src_time = src_summary["time_to_hire_days"].idxmin()
-    best_src_cost = src_summary["cost_per_hire"].idxmin()
-    best_src_accept = src_summary["offer_acceptance_rate"].idxmax()
+    best_src_time = src_summary.loc[src_summary["time_to_hire_days"].idxmin(), "source"]
+    best_src_cost = src_summary.loc[src_summary["cost_per_hire"].idxmin(), "source"]
+    best_src_accept = src_summary.loc[src_summary["offer_acceptance_rate"].idxmax(), "source"]
 
     st.markdown(f"""
     **Highlights:**
@@ -121,6 +121,8 @@ with tabs[1]:
     - Most cost-efficient source: **{best_src_cost}**
     - Highest offer acceptance: **{best_src_accept}**
     """)
+
+    st.dataframe(src_summary, use_container_width=True)
 
 # ==========================================================
 # TAB 3 — Job Title Analysis
@@ -133,12 +135,13 @@ with tabs[2]:
         .mean()
         .round(2)
         .sort_values("time_to_hire_days")
+        .reset_index()
     )
 
     st.dataframe(job_summary, use_container_width=True)
 
 # ==========================================================
-# TAB 4 — Overall Efficiency Ranking (with Top 10 Recruitments)
+# TAB 4 — Overall Efficiency Ranking (Enhanced)
 # ==========================================================
 with tabs[3]:
     st.subheader("Overall Recruitment Efficiency Ranking")
@@ -167,11 +170,10 @@ with tabs[3]:
         0.3 * dept_summary["accept_score"]
     )
 
-    dept_summary = dept_summary.sort_values("efficiency_score", ascending=False)
+    dept_summary = dept_summary.sort_values("efficiency_score", ascending=False).reset_index(drop=True)
 
-    st.markdown("###Department Efficiency Ranking")
-    st.dataframe(dept_summary[["department", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
-                 .round(2), use_container_width=True)
+    st.markdown("### 🏢 Department Efficiency Ranking")
+    st.dataframe(dept_summary.round(2), use_container_width=True)
 
     # --- Individual-level Top 10 Recruitments ---
     st.markdown("---")
@@ -202,13 +204,27 @@ with tabs[3]:
         [["recruitment_id", "department", "source", "job_title",
           "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .head(10)
+        .reset_index(drop=True)
         .round(2)
     )
 
-    st.dataframe(top10, use_container_width=True)
+    # Add ranking column
+    top10.index = np.arange(1, len(top10) + 1)
+    top10.index.name = "Rank"
+
+    # Highlight Top 3
+    def highlight_top3(row):
+        if row.name <= 3:
+            return ['background-color: #d4edda'] * len(row)
+        return [''] * len(row)
+
+    st.dataframe(
+        top10.style.apply(highlight_top3, axis=1),
+        use_container_width=True
+    )
 
     # --- Visualization: efficiency distribution ---
-    st.markdown("### Efficiency Score Distribution")
+    st.markdown("### 📈 Efficiency Score Distribution")
     fig, ax = plt.subplots(figsize=(6,3))
     df_ind["efficiency_score"].plot(kind="hist", bins=20, color="#F1C40F", ax=ax)
     ax.set_xlabel("Efficiency Score")
@@ -220,4 +236,4 @@ with tabs[3]:
 # Footer
 # ==========================================================
 st.markdown("---")
-st.caption("Data-Driven Recruitment Efficiency Dashboard (with Individual Ranking)")
+st.caption("Data-Driven Recruitment Efficiency Dashboard (with Ranking & Top 10 Highlight)")
