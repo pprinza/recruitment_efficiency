@@ -1,7 +1,7 @@
 # ==========================================================
 # Recruitment Efficiency Insight Dashboard
 # ==========================================================
-# Author: Patricia Prinza
+# Author: NeuraLens
 # Purpose: Data-Driven HR Insight — Department, Source, Job Title, and Efficiency Ranking
 # ==========================================================
 
