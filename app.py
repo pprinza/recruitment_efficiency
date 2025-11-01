@@ -249,7 +249,7 @@ with tab_predict:
                     mime="text/csv"
                 )
 
-# ✅ --- FEATURE IMPORTANCE SECTION (AUTO-FIX FOR PIPELINE) ---
+# ✅ --- FEATURE IMPORTANCE SECTION (AUTO DETECT ENCODER) ---
 st.subheader("🔍 Feature Importance Overview")
 
 found_any = False
@@ -259,19 +259,22 @@ for key, model in models.items():
 
     feature_names = list(user_df.columns)
     model_inner = None
+    encoder_found = False
 
-    # Cek apakah model berupa pipeline
+    # --- Deteksi pipeline ---
     if hasattr(model, "named_steps"):
-        # Coba ambil feature names hasil transformasi (OneHotEncoder, ColumnTransformer, dll)
-        if "preprocessor" in model.named_steps:
-            try:
-                preprocessor = model.named_steps["preprocessor"]
-                feature_names = preprocessor.get_feature_names_out()
-                st.caption(f"Using encoded feature names from preprocessor ({len(feature_names)} features).")
-            except Exception:
-                st.caption("⚠️ Could not extract transformed feature names; using raw input columns.")
-        
-        # Temukan step yang punya feature_importances_ atau coef_
+        # Cari step yang punya get_feature_names_out() → biasanya encoder/transformer
+        for step_name, step_obj in model.named_steps.items():
+            if hasattr(step_obj, "get_feature_names_out"):
+                try:
+                    feature_names = step_obj.get_feature_names_out()
+                    st.caption(f"🧩 Extracted encoded feature names from step '{step_name}' ({len(feature_names)} features).")
+                    encoder_found = True
+                    break
+                except Exception:
+                    pass
+
+        # Cari step model utama (yang punya feature_importances_ atau coef_)
         for step_name, step_obj in model.named_steps.items():
             if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
                 model_inner = step_obj
@@ -293,7 +296,7 @@ for key, model in models.items():
             st.warning("This model does not expose feature importances or coefficients.")
             continue
 
-        # Cek kesesuaian panjang
+        # --- Cek kesesuaian panjang ---
         if len(importances) != len(feature_names):
             st.warning(
                 f"⚠️ Feature count mismatch for model '{key}'. "
@@ -302,12 +305,12 @@ for key, model in models.items():
             )
             continue
 
+        # --- Tampilkan hasil ---
         fi = pd.DataFrame({
             "Feature": feature_names,
             "Importance": importances
         }).sort_values("Importance", ascending=False).head(10)
 
-        # Plot
         fig, ax = plt.subplots()
         ax.barh(fi["Feature"], fi["Importance"])
         ax.set_xlabel("Importance Score")
