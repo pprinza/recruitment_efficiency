@@ -60,13 +60,13 @@ df = compute_efficiency(df)
 # ----------------------------------------------------------
 @st.cache_resource
 def load_models():
-    MODEL_DIR = "retrain_outputs"
     models = {
-        "time": joblib.load(os.path.join(MODEL_DIR, "model_time_to_hire_days_FEv3.pkl")),
-        "cost": joblib.load(os.path.join(MODEL_DIR, "model_cost_per_hire_FEv3.pkl")),
-        "offer": joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
+        "time": joblib.load("model_time_to_hire_days_FEv3.pkl"),
+        "cost": joblib.load("model_cost_per_hire_FEv3.pkl"),
+        "offer": joblib.load("model_offer_acceptance_rate_FEv3.pkl")
     }
     return models
+
 
 models = load_models()
 
