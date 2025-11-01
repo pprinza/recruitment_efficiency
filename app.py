@@ -79,7 +79,7 @@ with tab1:
     st.divider()
 
     # The Most Efficient Highlights
-    st.markdown("### 🏢 The Most Efficient Department")
+    st.markdown("### The Most Efficient Department")
     best_dept = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -87,7 +87,7 @@ with tab1:
     )
     st.dataframe(best_dept.head(1).reset_index(), use_container_width=True, hide_index=True)
 
-    st.markdown("### 🔗 The Most Cost-Effective Source")
+    st.markdown("### The Most Cost-Effective Source")
     best_source = (
         df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
