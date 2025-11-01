@@ -205,11 +205,11 @@ with tab_predict:
     st.header("Batch Prediction — Recruitment Outcome Estimator")
     st.markdown("Gunakan model untuk memprediksi hasil berdasarkan *department* dan *source* yang dipilih.")
 
-    # Cek apakah model tersedia
+    # Pastikan model tersedia
     if not models_available:
         st.error("Model file (.pkl) tidak ditemukan. Silakan unggah model terlebih dahulu ke repository GitHub.")
     else:
-        # Dropdown inputs
+        # Dropdown untuk input user
         dept_list = sorted(df['department'].dropna().unique())
         source_list = sorted(df['source'].dropna().unique())
 
@@ -217,36 +217,32 @@ with tab_predict:
         selected_dept = col1.selectbox("Pilih Department", dept_list)
         selected_source = col2.selectbox("Pilih Source", source_list)
 
-        # Ambil contoh data dari dataset
-        example_df = df[(df['department'] == selected_dept) & (df['source'] == selected_source)].copy()
-
-        if example_df.empty:
-            st.warning("Kombinasi data tidak ditemukan dalam dataset. Coba pilih kombinasi lain.")
-        else:
-            # Gunakan rata-rata dari kombinasi yang dipilih
-            input_row = example_df.mean(numeric_only=True).to_frame().T
-
-            st.write("**Input Sample (mean values):**")
-            st.dataframe(input_row, use_container_width=True)
-
+        # Tombol prediksi
+        if st.button("Run Prediction"):
             try:
-                # Gunakan model pkl untuk prediksi
-                pred_time = models["time"].predict(input_row)[0]
-                pred_cost = models["cost"].predict(input_row)[0]
-                pred_offer = models["offer"].predict(input_row)[0]
+                # Buat data dummy satu baris untuk prediksi
+                input_data = df.sample(1).copy()
 
-                # Pastikan semua prediksi positif
+                # Ubah kolom department & source sesuai pilihan user
+                input_data["department"] = selected_dept
+                input_data["source"] = selected_source
+
+                # Jalankan model prediction
+                pred_time = models["time"].predict(input_data)[0]
+                pred_cost = models["cost"].predict(input_data)[0]
+                pred_offer = models["offer"].predict(input_data)[0]
+
+                # Pastikan tidak ada nilai negatif
                 pred_time = np.clip(pred_time, 0, None)
                 pred_cost = np.clip(pred_cost, 0, None)
                 pred_offer = np.clip(pred_offer, 0, 1)
 
-                # Tampilkan hasil prediksi
+                # Tampilkan hasil prediksi langsung
                 st.success("Prediction completed successfully.")
-
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
-                c2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
-                c3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
+                col2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
+                col3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
 
             except Exception as e:
                 st.error(f"Gagal menjalankan prediksi: {e}")
