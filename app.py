@@ -119,7 +119,7 @@ with tab2:
 # SOURCE INSIGHTS
 # ==========================================================
 with tab3:
-    st.header("Source Effectiveness (Sorted by Efficiency Score)")
+    st.header("Source Effectiveness")
     source_summary = (
         df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
@@ -131,7 +131,7 @@ with tab3:
 # JOB ROLE INSIGHTS
 # ==========================================================
 with tab4:
-    st.header("Job Role Efficiency (Sorted by Efficiency Score)")
+    st.header("Job Role Efficiency")
     job_summary = (
         df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
