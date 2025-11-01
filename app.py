@@ -235,6 +235,35 @@ with tab_predict:
                     "pred_offer_acceptance_rate"
                 ]
                 st.dataframe(user_df[show_cols].head(20), use_container_width=True)
+
+                # ✅ --- DOWNLOAD BUTTON ---
+                csv_buffer = io.BytesIO()
+                user_df.to_csv(csv_buffer, index=False)
+                st.download_button(
+                    label="📥 Download Prediction Results (CSV)",
+                    data=csv_buffer.getvalue(),
+                    file_name="prediction_results.csv",
+                    mime="text/csv"
+                )
+
+                # ✅ --- FEATURE IMPORTANCE SECTION ---
+                st.subheader("🔍 Feature Importance Overview")
+                for key, model in models.items():
+                    if model is not None and hasattr(model, "feature_importances_"):
+                        st.write(f"**Model:** {key.upper()}")
+                        fi = pd.DataFrame({
+                            "Feature": user_df.columns,
+                            "Importance": model.feature_importances_
+                        }).sort_values("Importance", ascending=False).head(10)
+
+                        fig, ax = plt.subplots()
+                        ax.barh(fi["Feature"], fi["Importance"])
+                        ax.set_xlabel("Importance Score")
+                        ax.set_ylabel("Feature")
+                        ax.invert_yaxis()
+                        st.pyplot(fig)
+                        st.dataframe(fi, use_container_width=True)
+                        st.divider()
             else:
                 st.error("All models failed to predict. Please check feature columns or model format.")
         else:
