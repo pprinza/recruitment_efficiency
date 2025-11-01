@@ -249,30 +249,61 @@ with tab_predict:
                     mime="text/csv"
                 )
 
-                # ✅ --- FEATURE IMPORTANCE SECTION ---
-                st.subheader("🔍 Feature Importance Overview")
-                for key, model in models.items():
-                    if model is not None and hasattr(model, "feature_importances_"):
-                        st.write(f"**Model:** {key.upper()}")
-                        fi = pd.DataFrame({
-                            "Feature": user_df.columns,
-                            "Importance": model.feature_importances_
-                        }).sort_values("Importance", ascending=False).head(10)
+                # ✅ --- FEATURE IMPORTANCE SECTION (IMPROVED) ---
+st.subheader("🔍 Feature Importance Overview")
 
-                        fig, ax = plt.subplots()
-                        ax.barh(fi["Feature"], fi["Importance"])
-                        ax.set_xlabel("Importance Score")
-                        ax.set_ylabel("Feature")
-                        ax.invert_yaxis()
-                        st.pyplot(fig)
-                        st.dataframe(fi, use_container_width=True)
-                        st.divider()
-            else:
-                st.error("All models failed to predict. Please check feature columns or model format.")
+found_any = False
+for key, model in models.items():
+    if model is None:
+        continue
+
+    feature_names = user_df.columns
+
+    # Coba deteksi jika model adalah pipeline
+    if hasattr(model, "named_steps"):
+        # Cari step terakhir yang punya feature_importances_ atau coef_
+        for step_name, step_obj in model.named_steps.items():
+            if hasattr(step_obj, "feature_importances_"):
+                model_inner = step_obj
+                break
+            elif hasattr(step_obj, "coef_"):
+                model_inner = step_obj
+                break
         else:
-            st.warning("No model files found (.pkl). Only efficiency score will be shown.")
-            df_eff = compute_efficiency(user_df)
-            st.dataframe(df_eff.head(), use_container_width=True)
+            model_inner = None
+    else:
+        model_inner = model
+
+    if model_inner is not None:
+        if hasattr(model_inner, "feature_importances_"):
+            fi = pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": model_inner.feature_importances_
+            }).sort_values("Importance", ascending=False).head(10)
+            st.write(f"**Model:** {key.upper()} — Tree-based importance")
+            found_any = True
+        elif hasattr(model_inner, "coef_"):
+            fi = pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": np.abs(model_inner.coef_).flatten()
+            }).sort_values("Importance", ascending=False).head(10)
+            st.write(f"**Model:** {key.upper()} — Coefficient magnitude")
+            found_any = True
+        else:
+            continue
+
+        fig, ax = plt.subplots()
+        ax.barh(fi["Feature"], fi["Importance"])
+        ax.set_xlabel("Importance Score")
+        ax.set_ylabel("Feature")
+        ax.invert_yaxis()
+        st.pyplot(fig)
+        st.dataframe(fi, use_container_width=True)
+        st.divider()
+
+if not found_any:
+    st.info("No models provide feature importance or coefficient information.")
+
 
 # ----------------------------------------------------------
 # FOOTER / MODEL STATUS
