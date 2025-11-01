@@ -123,10 +123,12 @@ with tab4:
     st.dataframe(job_summary.reset_index(), use_container_width=True)
 
 with tab5:
-    st.header("Top 10 Most Efficient Recruitments")
+    st.header("Top 10 Most Efficient Recruitments (Individual Level)")
     top10 = df.sort_values("efficiency_score", ascending=False).head(10)
-    st.dataframe(top10[["department","source","job_title","time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]],
-                 use_container_width=True)
+    top10_display = top10[
+        ["department", "source", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]
+    ]
+    st.dataframe(top10_display.reset_index(drop=True), use_container_width=True, hide_index=True)
 
 # ==========================================================
 # TAB 6: BATCH PREDICTION
