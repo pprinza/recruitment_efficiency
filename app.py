@@ -9,8 +9,8 @@ import os
 
 # --- Streamlit configuration ---
 st.set_page_config(
-    page_title="Recruitment Efficiency Predictor (FEv3)", 
-    page_icon="💼", 
+    page_title="Recruitment Efficiency Predictor (FEv3)",
+    page_icon="💼",
     layout="wide"
 )
 
@@ -20,7 +20,7 @@ st.markdown("""
 This dashboard predicts **Time to Hire**, **Cost per Hire**, and **Offer Acceptance Rate**
 based on your recruitment process data.
 
-> FEv3 represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
+> This model represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
 """)
 
 # ==========================================================
@@ -28,7 +28,7 @@ based on your recruitment process data.
 # ==========================================================
 st.sidebar.header("Model Settings")
 
-# 🔧 Use root directory since .pkl files are stored in main folder
+# All .pkl files are stored in the root folder
 MODEL_DIR = "."
 
 @st.cache_resource(show_spinner=False)
@@ -40,7 +40,7 @@ def load_models():
         models["offer_acceptance_rate"] = joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
         return models
     except Exception as e:
-        st.error(f"⚠️ Error loading models: {e}")
+        st.error(f"Error loading models: {e}")
         return None
 
 models = load_models()
@@ -63,12 +63,13 @@ with st.form("prediction_form"):
     candidate_satisfaction = st.slider("Candidate Satisfaction", 0.0, 1.0, 0.7)
     offer_readiness = st.slider("Offer Readiness", 0.0, 1.0, 0.75)
 
-    submitted = st.form_submit_button("🚀 Run Prediction")
+    submitted = st.form_submit_button("Run Prediction")
 
 # ==========================================================
 # PREDICTION PROCESS
 # ==========================================================
 if submitted:
+    # Step 1 — base input
     input_data = pd.DataFrame([{
         "department": department,
         "source": source,
@@ -81,12 +82,39 @@ if submitted:
         "offer_readiness": offer_readiness
     }])
 
+    # Step 2 — fill engineered features expected by the model
+    engineered_defaults = {
+        "complexity_flag": 0,
+        "cost_index": 0.5,
+        "cost_pressure": 0.4,
+        "process_intensity": process_efficiency / (1 + 1),  # mimic FE logic
+        "efficiency_balance": process_efficiency / (cost_intensity + 1e-6),
+        "efficiency_ratio": 0.7,
+        "applicant_density": np.log1p(num_applicants) / (45 + 1),  # approximate
+        "operational_efficiency": 0.6,
+        "overall_efficiency_index": 0.7,
+        "role_efficiency_score": 0.6,
+        "source_reputation": 0.5,
+        "is_referral": 1 if "Referral" in source else 0,
+        "is_linkedin": 1 if "LinkedIn" in source else 0,
+        "is_recruiter": 1 if "Recruiter" in source else 0,
+        "is_technical": 1 if department in ["Engineering", "Product", "IT"] else 0,
+        "is_hr_or_sales": 1 if department in ["HR", "Sales"] else 0,
+        "recruitment_id": 0,
+        "job_title": "Analyst"
+    }
+
+    for k, v in engineered_defaults.items():
+        if k not in input_data.columns:
+            input_data[k] = v
+
+    # Step 3 — prediction and display
     try:
         time_pred = models["time_to_hire_days"].predict(input_data)[0]
         cost_pred = models["cost_per_hire"].predict(input_data)[0]
         offer_pred = models["offer_acceptance_rate"].predict(input_data)[0]
 
-        st.success("✅ Prediction completed successfully!")
+        st.success("Prediction completed successfully!")
         st.subheader("Predicted Results")
 
         col1, col2, col3 = st.columns(3)
