@@ -7,11 +7,15 @@ import numpy as np
 import joblib
 import os
 
-st.set_page_config(page_title="Recruitment Efficiency Predictor (FEv3)", 
-                   page_icon="💼", layout="wide")
+# --- Streamlit configuration ---
+st.set_page_config(
+    page_title="Recruitment Efficiency Predictor (FEv3)", 
+    page_icon="💼", 
+    layout="wide"
+)
 
 # --- Title & description ---
-st.title("💼 Recruitment Efficiency Predictor — FEv3")
+st.title("Recruitment Efficiency Predictor")
 st.markdown("""
 This dashboard predicts **Time to Hire**, **Cost per Hire**, and **Offer Acceptance Rate**
 based on your recruitment process data.
@@ -19,12 +23,15 @@ based on your recruitment process data.
 > FEv3 represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
 """)
 
-# --- Sidebar configuration ---
+# ==========================================================
+# MODEL LOADING
+# ==========================================================
 st.sidebar.header("Model Settings")
-MODEL_DIR = "retrain_outputs"
 
-# Load pre-trained models
-@st.cache_resource
+# 🔧 Use root directory since .pkl files are stored in main folder
+MODEL_DIR = "."
+
+@st.cache_resource(show_spinner=False)
 def load_models():
     models = {}
     try:
@@ -33,15 +40,17 @@ def load_models():
         models["offer_acceptance_rate"] = joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
         return models
     except Exception as e:
-        st.error(f"Error loading models: {e}")
+        st.error(f"⚠️ Error loading models: {e}")
         return None
 
 models = load_models()
 if not models:
     st.stop()
 
-# --- Input form ---
-st.header("Input Recruitment Features")
+# ==========================================================
+# INPUT FORM
+# ==========================================================
+st.header("📋 Input Recruitment Features")
 
 with st.form("prediction_form"):
     department = st.selectbox("Department", ["Engineering", "Product", "HR", "Sales", "Marketing", "Finance"])
@@ -54,9 +63,11 @@ with st.form("prediction_form"):
     candidate_satisfaction = st.slider("Candidate Satisfaction", 0.0, 1.0, 0.7)
     offer_readiness = st.slider("Offer Readiness", 0.0, 1.0, 0.75)
 
-    submitted = st.form_submit_button("Run Prediction")
+    submitted = st.form_submit_button("🚀 Run Prediction")
 
-# --- Run prediction ---
+# ==========================================================
+# PREDICTION PROCESS
+# ==========================================================
 if submitted:
     input_data = pd.DataFrame([{
         "department": department,
@@ -70,49 +81,53 @@ if submitted:
         "offer_readiness": offer_readiness
     }])
 
-    # Generate predictions
-    time_pred = models["time_to_hire_days"].predict(input_data)[0]
-    cost_pred = models["cost_per_hire"].predict(input_data)[0]
-    offer_pred = models["offer_acceptance_rate"].predict(input_data)[0]
+    try:
+        time_pred = models["time_to_hire_days"].predict(input_data)[0]
+        cost_pred = models["cost_per_hire"].predict(input_data)[0]
+        offer_pred = models["offer_acceptance_rate"].predict(input_data)[0]
 
-    st.success("Prediction completed successfully!")
-    st.subheader("Predicted Results")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Time to Hire (days)", f"{time_pred:.1f}")
-    col2.metric("Cost per Hire ($)", f"{cost_pred:,.2f}")
-    col3.metric("Offer Acceptance Rate", f"{offer_pred*100:.1f}%")
+        st.success("✅ Prediction completed successfully!")
+        st.subheader("Predicted Results")
 
-    # --- Business simulation ---
-    st.markdown("---")
-    st.markdown("### 📈 Business Impact Simulation (Optimized Scenario)")
-    st.write("""
-    This simulation estimates the potential improvement if efficiency and engagement are increased:
-    - +10% Offer Readiness  
-    - +15% Engagement Score  
-    - +10% Department Efficiency
-    """)
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Time to Hire (days)", f"{time_pred:.1f}")
+        col2.metric("Cost per Hire ($)", f"{cost_pred:,.2f}")
+        col3.metric("Offer Acceptance Rate", f"{offer_pred*100:.1f}%")
 
-    df_opt = input_data.copy()
-    df_opt["offer_readiness"] *= 1.1
-    df_opt["engagement_score"] *= 1.15
-    df_opt["dept_efficiency"] *= 1.1
+        # ==========================================================
+        # BUSINESS SIMULATION (Optimized Scenario)
+        # ==========================================================
+        st.markdown("---")
+        st.markdown("### 📈 Business Impact Simulation (Optimized Scenario)")
+        st.write("""
+        This simulation estimates the potential improvement if efficiency and engagement are increased:
+        - +10% Offer Readiness  
+        - +15% Engagement Score  
+        - +10% Department Efficiency
+        """)
 
-    opt_time = models["time_to_hire_days"].predict(df_opt)[0]
-    opt_cost = models["cost_per_hire"].predict(df_opt)[0]
-    opt_offer = models["offer_acceptance_rate"].predict(df_opt)[0]
+        df_opt = input_data.copy()
+        df_opt["offer_readiness"] *= 1.1
+        df_opt["engagement_score"] *= 1.15
+        df_opt["dept_efficiency"] *= 1.1
 
-    delta_t = time_pred - opt_time
-    delta_c = cost_pred - opt_cost
-    delta_o = (opt_offer - offer_pred) * 100
+        opt_time = models["time_to_hire_days"].predict(df_opt)[0]
+        opt_cost = models["cost_per_hire"].predict(df_opt)[0]
+        opt_offer = models["offer_acceptance_rate"].predict(df_opt)[0]
 
-    st.write("**Baseline vs Optimized Comparison:**")
-    impact_data = pd.DataFrame({
-        "Metric": ["Hiring Duration (days)", "Cost per Hire ($)", "Offer Acceptance (%)"],
-        "Baseline": [time_pred, cost_pred, offer_pred*100],
-        "Optimized": [opt_time, opt_cost, opt_offer*100],
-        "Change": [delta_t, delta_c, delta_o]
-    }).round(2)
+        delta_t = time_pred - opt_time
+        delta_c = cost_pred - opt_cost
+        delta_o = (opt_offer - offer_pred) * 100
 
-    st.dataframe(impact_data, use_container_width=True)
+        impact_data = pd.DataFrame({
+            "Metric": ["Hiring Duration (days)", "Cost per Hire ($)", "Offer Acceptance (%)"],
+            "Baseline": [time_pred, cost_pred, offer_pred * 100],
+            "Optimized": [opt_time, opt_cost, opt_offer * 100],
+            "Change": [delta_t, delta_c, delta_o]
+        }).round(2)
 
-    st.caption("💡 Insight: The optimized scenario indicates measurable improvements in time and cost efficiency.")
+        st.dataframe(impact_data, use_container_width=True)
+        st.caption("💡 Insight: The optimized scenario shows measurable improvements in time and cost efficiency.")
+
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
