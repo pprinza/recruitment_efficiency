@@ -110,5 +110,5 @@ st.markdown("""
 ---
 **Recruitment Efficiency Project**  
 Predicting hiring duration, cost per hire, and offer acceptance using data-driven insights.  
-Built with ❤️ by Patricia Prinza — 2025
+Built with NeuraLens - 2025
 """)
