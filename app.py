@@ -123,7 +123,7 @@ with tab4:
     st.dataframe(job_summary.reset_index(), use_container_width=True)
 
 with tab5:
-    st.header("Top 10 Most Efficient Recruitments (Individual Level)")
+    st.header("Top 10 Most Efficient Recruitments")
     top10 = df.sort_values("efficiency_score", ascending=False).head(10)
     top10_display = top10[
         ["department", "source", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]
