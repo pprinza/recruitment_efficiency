@@ -213,119 +213,58 @@ with tab_top10:
         )
 
 # ==========================================================
-# BATCH PREDICTION TAB (UPLOAD CSV + FEATURE IMPORTANCE)
+# TAB 6: BATCH PREDICTION — Simplified Display
 # ==========================================================
-with tab_predict:
-    st.header("Batch Prediction — Recruitment Simulation & Model Explainability")
+with tab6:
+    st.header("Batch Prediction — Predict Recruitment KPIs from CSV")
 
-    st.markdown("""
-    Upload a CSV file containing your recruitment data, run predictions for Time to Hire, Cost per Hire, and Offer Acceptance Rate, and download the results.
-    This dashboard also displays the Feature Importance of each model to help explain the impact of each feature.
-    """)
-
-    uploaded_file = st.file_uploader("📁 Upload CSV File", type=["csv"])
+    uploaded_file = st.file_uploader("Upload your recruitment dataset (CSV)", type=["csv"])
 
     if uploaded_file is not None:
-        try:
-            # Load uploaded dataset
-            user_df = pd.read_csv(uploaded_file)
-            st.subheader("Data Preview")
-            st.dataframe(user_df.head(), use_container_width=True)
+        data = pd.read_csv(uploaded_file)
+        st.subheader("Data Preview")
+        st.dataframe(data[["department", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]].head(),
+                     use_container_width=True)
 
-            # pastikan model tersedia
-            if not models_available:
-                st.error("Model file (.pkl) tidak ditemukan di direktori retrain_outputs/")
-            else:
-                st.divider()
-                st.info("⏳ Running prediction... Please wait.")
+        if models:
+            try:
+                # Run predictions
+                data["pred_time_to_hire_days"] = models["time"].predict(data)
+                data["pred_cost_per_hire"] = models["cost"].predict(data)
+                data["pred_offer_acceptance_rate"] = models["offer"].predict(data)
 
-                preds = {}
+                st.success("✅ Prediction completed successfully.")
 
-                # Prediksi untuk masing-masing target
-                for key, model in models.items():
-                    if model is None:
-                        preds[key] = np.nan
-                        continue
+                # Select key columns for display
+                display_cols = [
+                    "department", "job_title",
+                    "time_to_hire_days", "pred_time_to_hire_days",
+                    "cost_per_hire", "pred_cost_per_hire",
+                    "offer_acceptance_rate", "pred_offer_acceptance_rate"
+                ]
 
-                    # pastikan kolom sesuai dengan feature_names_in_
-                    if hasattr(model, "feature_names_in_"):
-                        model_features = model.feature_names_in_
-                        missing = [f for f in model_features if f not in user_df.columns]
-                        for m in missing:
-                            user_df[m] = 0
-                        X_input = user_df[model_features]
-                    else:
-                        X_input = user_df.select_dtypes(include=[np.number])
+                st.subheader("Prediction Results (Key Metrics)")
+                st.dataframe(data[display_cols].head(10), use_container_width=True)
 
-                    preds[key] = model.predict(X_input)
+                # Summary Metrics
+                st.subheader("Summary Statistics (Predictions)")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Avg Predicted Time to Hire (days)", f"{data['pred_time_to_hire_days'].mean():.1f}")
+                col2.metric("Avg Predicted Cost per Hire ($)", f"{data['pred_cost_per_hire'].mean():,.0f}")
+                col3.metric("Avg Predicted Offer Acceptance Rate (%)", f"{data['pred_offer_acceptance_rate'].mean() * 100:.1f}%")
 
-                # gabungkan hasil prediksi ke dataframe
-                user_df["pred_time_to_hire_days"] = np.clip(preds.get("time_to_hire_days", np.nan), 0, None)
-                user_df["pred_cost_per_hire"] = np.clip(preds.get("cost_per_hire", np.nan), 0, None)
-                user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer_acceptance_rate", np.nan), 0, 1)
-
-                st.success("Prediction completed successfully!")
-                st.subheader("Prediction Results")
-                st.dataframe(
-                    user_df[
-                        [
-                            "department", "source", "job_title",
-                            "pred_time_to_hire_days", "pred_cost_per_hire", "pred_offer_acceptance_rate"
-                        ]
-                    ].head(10),
-                    use_container_width=True
-                )
-
-                # Download hasil prediksi
-                csv_download = user_df.to_csv(index=False).encode("utf-8")
+                # Downloadable CSV
+                csv = data[display_cols].to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="⬇️ Download Predicted Results (CSV)",
-                    data=csv_download,
-                    file_name="predicted_recruitment_outcomes.csv",
-                    mime="text/csv",
+                    label="Download Predictions CSV",
+                    data=csv,
+                    file_name="recruitment_predictions_simplified.csv",
+                    mime="text/csv"
                 )
 
-                # ==========================================================
-                # FEATURE IMPORTANCE VISUALIZATION
-                # ==========================================================
-                st.divider()
-                st.subheader("🔍 Model Feature Importance")
-
-                import matplotlib.pyplot as plt
-
-                for key, model in models.items():
-                    if hasattr(model, "feature_importances_"):
-                        importance_df = pd.DataFrame({
-                            "Feature": model.feature_names_in_,
-                            "Importance": model.feature_importances_
-                        }).sort_values("Importance", ascending=False).head(10)
-
-                        st.markdown(f"**Top 10 Important Features — {key.replace('_', ' ').title()}**")
-
-                        fig, ax = plt.subplots()
-                        ax.barh(importance_df["Feature"], importance_df["Importance"])
-                        ax.set_xlabel("Importance")
-                        ax.set_ylabel("Feature")
-                        ax.invert_yaxis()
-                        st.pyplot(fig)
-
-                    elif hasattr(model, "coef_"):
-                        # untuk model linear (ridge / lasso)
-                        importance_df = pd.DataFrame({
-                            "Feature": model.feature_names_in_,
-                            "Coefficient": model.coef_.flatten()
-                        }).sort_values("Coefficient", ascending=False).head(10)
-
-                        st.markdown(f"**Top 10 Coefficients — {key.replace('_', ' ').title()}**")
-
-                        fig, ax = plt.subplots()
-                        ax.barh(importance_df["Feature"], importance_df["Coefficient"])
-                        ax.set_xlabel("Coefficient")
-                        ax.set_ylabel("Feature")
-                        ax.invert_yaxis()
-                        st.pyplot(fig)
-
-        except Exception as e:
-            st.error(f"Gagal menjalankan prediksi: {e}")
+            except Exception as e:
+                st.error(f"Prediction failed: {e}")
+        else:
+            st.warning("Models not loaded. Please check your .pkl files in GitHub or Streamlit environment.")
     else:
-        st.info("📤 Silakan unggah file CSV terlebih dahulu untuk menjalankan simulasi prediksi.")
+        st.info("Upload a CSV file to run predictions.")
