@@ -224,9 +224,12 @@ with tab_predict:
                         st.warning(f"Model '{key}' failed: {e}")
 
             if any(v is not None for v in preds.values()):
-            user_df["pred_time_to_hire_days"] = np.clip(preds.get("time", np.nan), 0, None)
-            user_df["pred_cost_per_hire"] = np.clip(preds.get("cost", np.nan), 0, None)
-            user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer", np.nan), 0, None)
+                st.success("Prediction completed successfully.")
+
+                # ✅ pastikan baris-baris berikut memiliki indentasi ini (4 spasi)
+                user_df["pred_time_to_hire_days"] = np.clip(preds.get("time", np.nan), 0, None)
+                user_df["pred_cost_per_hire"] = np.clip(preds.get("cost", np.nan), 0, None)
+                user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer", np.nan), 0, 1)
 
                 show_cols = [
                     "department", "source", "job_title",
@@ -240,12 +243,3 @@ with tab_predict:
             st.warning("No model files found (.pkl). Only efficiency score will be shown.")
             df_eff = compute_efficiency(user_df)
             st.dataframe(df_eff.head(), use_container_width=True)
-
-# ----------------------------------------------------------
-# FOOTER / MODEL STATUS
-# ----------------------------------------------------------
-st.divider()
-if missing_models:
-    st.info(f"Missing model files: {missing_models}")
-else:
-    st.caption("All model files loaded successfully.")
