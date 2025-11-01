@@ -5,24 +5,28 @@
 # Purpose: Data-Driven HR Insight — Department, Source, Job Title, and Individual Efficiency Ranking
 # ==========================================================
 
+# ==========================================================
+# Recruitment Efficiency Insight Dashboard (Executive Version - Sorted + Delta)
+# ==========================================================
 import streamlit as st
 import pandas as pd
 import numpy as np
 
 # -------------------------------
-# Page setup
+# PAGE CONFIGURATION
 # -------------------------------
 st.set_page_config(page_title="Recruitment Efficiency Dashboard", page_icon="💼", layout="wide")
-
 st.title("Recruitment Efficiency Insight Dashboard")
 st.markdown("""
-This dashboard helps HR teams understand **which departments, job titles, and candidate sources** contribute most to recruitment efficiency.
-
-**Focus Metrics:** Time to Hire, Cost per Hire, and Offer Acceptance Rate
+This dashboard summarizes **the most efficient departments, sources, and job roles**
+based on three recruitment KPIs:
+- Time to Hire  
+- Cost per Hire  
+- Offer Acceptance Rate  
 """)
 
 # -------------------------------
-# Load data
+# LOAD DATA
 # -------------------------------
 @st.cache_data
 def load_data():
@@ -34,13 +38,12 @@ df = load_data()
 required_cols = ['department', 'source', 'job_title', 'time_to_hire_days', 'cost_per_hire', 'offer_acceptance_rate']
 if not all(col in df.columns for col in required_cols):
     st.error(f"Missing columns in dataset: {set(required_cols) - set(df.columns)}")
-    st.info("Please ensure your CSV has the correct columns.")
     st.stop()
 
 # -------------------------------
-# Calculate Efficiency Score
+# CALCULATE EFFICIENCY SCORE
 # -------------------------------
-def compute_efficiency_score(df):
+def compute_efficiency(df):
     df = df.copy()
     df['time_score'] = 1 - (df['time_to_hire_days'] - df['time_to_hire_days'].min()) / (df['time_to_hire_days'].max() - df['time_to_hire_days'].min())
     df['cost_score'] = 1 - (df['cost_per_hire'] - df['cost_per_hire'].min()) / (df['cost_per_hire'].max() - df['cost_per_hire'].min())
@@ -48,78 +51,112 @@ def compute_efficiency_score(df):
     df['efficiency_score'] = 0.4 * df['time_score'] + 0.3 * df['cost_score'] + 0.3 * df['accept_score']
     return df
 
-df = compute_efficiency_score(df)
+df = compute_efficiency(df)
 
 # -------------------------------
-# Tabs setup
+# DELTA TREND CALCULATION (if time/period column exists)
+# -------------------------------
+has_time_col = any(col in df.columns for col in ['period', 'month', 'year'])
+if has_time_col:
+    time_col = [c for c in ['period', 'month', 'year'] if c in df.columns][0]
+    latest_period = df[time_col].max()
+    prev_period = df[time_col].sort_values().unique()[-2] if len(df[time_col].unique()) > 1 else None
+
+    latest_df = df[df[time_col] == latest_period]
+    prev_df = df[df[time_col] == prev_period] if prev_period else df.copy()
+
+    avg_time_latest = latest_df['time_to_hire_days'].mean()
+    avg_cost_latest = latest_df['cost_per_hire'].mean()
+    avg_accept_latest = latest_df['offer_acceptance_rate'].mean()
+
+    avg_time_prev = prev_df['time_to_hire_days'].mean()
+    avg_cost_prev = prev_df['cost_per_hire'].mean()
+    avg_accept_prev = prev_df['offer_acceptance_rate'].mean()
+
+    delta_time = ((avg_time_prev - avg_time_latest) / avg_time_prev) * 100
+    delta_cost = ((avg_cost_prev - avg_cost_latest) / avg_cost_prev) * 100
+    delta_accept = ((avg_accept_latest - avg_accept_prev) / avg_accept_prev) * 100
+else:
+    delta_time = delta_cost = delta_accept = None
+
+# -------------------------------
+# TABS
 # -------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Executive Summary Dashboard",
-    "Department Efficiency",
-    "Source Effectiveness",
-    "Job Title Complexity",
-    "Overall Efficiency Ranking"
+    "Executive Summary",
+    "Department Insights",
+    "Source Insights",
+    "Job Role Insights",
+    "Top 10 Most Efficient Recruitments"
 ])
 
 # ==========================================================
-# TAB 1 — Executive Summary Dashboard
+# 🏠 EXECUTIVE SUMMARY
 # ==========================================================
 with tab1:
     st.header("Recruitment KPI Scorecard — Executive Overview")
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("Average Time to Hire (days)", f"{df['time_to_hire_days'].mean():.1f}")
-    col2.metric("Average Cost per Hire ($)", f"{df['cost_per_hire'].mean():,.0f}")
-    col3.metric("Offer Acceptance Rate (%)", f"{df['offer_acceptance_rate'].mean() * 100:.1f}%")
+    avg_time = round(df['time_to_hire_days'].mean())
+    avg_cost = round(df['cost_per_hire'].mean())
+    avg_accept = round(df['offer_acceptance_rate'].mean() * 100)
 
-    st.markdown("###Top 5 Most Efficient Departments")
-    dept_eff = df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean().sort_values("efficiency_score", ascending=False).head(5)
-    st.dataframe(dept_eff.style.background_gradient(cmap="Greens"), use_container_width=True)
+    col1.metric("Average Time to Hire (days)", f"{avg_time}", f"{delta_time:.1f}%" if delta_time else None)
+    col2.metric("Average Cost per Hire ($)", f"{avg_cost:,}", f"{delta_cost:.1f}%" if delta_cost else None)
+    col3.metric("Offer Acceptance Rate (%)", f"{avg_accept}%", f"{delta_accept:.1f}%" if delta_accept else None)
 
-    st.markdown("###Top 5 Most Cost-Effective Sources")
-    src_eff = df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean().sort_values("cost_per_hire").head(5)
-    st.dataframe(src_eff.style.background_gradient(cmap="Blues"), use_container_width=True)
+    st.divider()
+
+    # The Most Efficient Department
+    best_dept = df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                  .mean().sort_values("efficiency_score", ascending=False)
+    st.markdown("### The Most Efficient Department")
+    st.dataframe(best_dept.head(1).style.background_gradient(cmap="Greens"), use_container_width=True)
+
+    # The Most Cost-Effective Source
+    best_source = df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                    .mean().sort_values("efficiency_score", ascending=False)
+    st.markdown("### The Most Cost-Effective Source")
+    st.dataframe(best_source.head(1).style.background_gradient(cmap="Blues"), use_container_width=True)
+
+    # The Most Efficient Job Role
+    best_role = df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                  .mean().sort_values("efficiency_score", ascending=False)
+    st.markdown("### The Most Efficient Job Title")
+    st.dataframe(best_role.head(1).style.background_gradient(cmap="Oranges"), use_container_width=True)
 
 # ==========================================================
-# TAB 2 — Department Efficiency
+# 🏢 DEPARTMENT INSIGHTS
 # ==========================================================
 with tab2:
-    st.header("Department Efficiency Overview")
-    dept_summary = df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean()
-    dept_summary = dept_summary.sort_values("efficiency_score", ascending=False)
+    st.header("Department Efficiency (Sorted by Efficiency Score)")
+    dept_summary = df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                     .mean().sort_values("efficiency_score", ascending=False)
     st.dataframe(dept_summary.style.background_gradient(cmap="Greens"), use_container_width=True)
 
 # ==========================================================
-# TAB 3 — Source Effectiveness
+# 🔗 SOURCE INSIGHTS
 # ==========================================================
 with tab3:
-    st.header("Source Effectiveness & Cost Efficiency")
-    source_summary = df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean()
-    source_summary = source_summary.sort_values("efficiency_score", ascending=False)
+    st.header("Source Effectiveness (Sorted by Efficiency Score)")
+    source_summary = df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                       .mean().sort_values("efficiency_score", ascending=False)
     st.dataframe(source_summary.style.background_gradient(cmap="Blues"), use_container_width=True)
 
 # ==========================================================
-# TAB 4 — Job Title Complexity
+# 💼 JOB ROLE INSIGHTS
 # ==========================================================
 with tab4:
-    st.header("Job Title Complexity & Efficiency")
-    job_summary = df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean()
-    job_summary = job_summary.sort_values("efficiency_score", ascending=False)
+    st.header("Job Role Efficiency (Sorted by Efficiency Score)")
+    job_summary = df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]] \
+                    .mean().sort_values("efficiency_score", ascending=False)
     st.dataframe(job_summary.style.background_gradient(cmap="Oranges"), use_container_width=True)
 
 # ==========================================================
-# TAB 5 — Overall Efficiency Ranking
+# TOP 10 MOST EFFICIENT RECRUITMENTS
 # ==========================================================
 with tab5:
-    st.header("Overall Efficiency Ranking — Top 10 Most Efficient Recruitments")
-
+    st.header("Top 10 Most Efficient Recruitments (Individual Level)")
     top10 = df.sort_values("efficiency_score", ascending=False).head(10)
-    top10_display = top10[[
-        "department", "source", "job_title",
-        "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"
-    ]]
-
-    st.dataframe(top10_display.style.applymap(
-        lambda v: 'background-color: #d4edda' if v == top10_display['efficiency_score'].max() else ''
-    ), use_container_width=True)
-
-    st.caption("Highest efficiency scores indicate the most optimized balance between speed, cost, and offer acceptance rate.")
+    top10_display = top10[["department", "source", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
+    st.dataframe(top10_display.style.applymap(lambda v: 'background-color: #d4edda' if v == top10_display['efficiency_score'].max() else ''), use_container_width=True)
