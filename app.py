@@ -12,7 +12,7 @@ import os
 # Page Configuration
 # ----------------------------------------------------------
 st.set_page_config(
-    page_title="Recruitment Efficiency Predictor (FEv3)",
+    page_title="Recruitment Efficiency Predictor",
     page_icon="💼",
     layout="wide"
 )
@@ -22,24 +22,40 @@ st.markdown("""
 This dashboard predicts **Time to Hire**, **Cost per Hire**, and **Offer Acceptance Rate**  
 based on your recruitment process data.
 
-> It represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
+> FEv3 represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
 """)
 
 # ----------------------------------------------------------
-# Load Models
+# Load Models Automatically (no folder issue)
 # ----------------------------------------------------------
-MODEL_DIR = "./"
 @st.cache_resource
 def load_models():
+    """Automatically detect and load model files."""
+    possible_dirs = ["./", "models", "deployment_models", "retrain_outputs"]
+    model_files = {
+        "time_to_hire_days": "model_time_to_hire_days_FEv3.pkl",
+        "cost_per_hire": "model_cost_per_hire_FEv3.pkl",
+        "offer_acceptance_rate": "model_offer_acceptance_rate_FEv3.pkl"
+    }
+
     models = {}
-    try:
-        models["time_to_hire_days"] = joblib.load(os.path.join(MODEL_DIR, "model_time_to_hire_days_FEv3.pkl"))
-        models["cost_per_hire"] = joblib.load(os.path.join(MODEL_DIR, "model_cost_per_hire_FEv3.pkl"))
-        models["offer_acceptance_rate"] = joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
-        return models
-    except Exception as e:
-        st.error(f"Error loading models: {e}")
+    found_all = True
+
+    for model_key, filename in model_files.items():
+        model_loaded = False
+        for directory in possible_dirs:
+            path = os.path.join(directory, filename)
+            if os.path.exists(path):
+                models[model_key] = joblib.load(path)
+                model_loaded = True
+                break
+        if not model_loaded:
+            st.error(f"❌ Model not found: {filename}")
+            found_all = False
+
+    if not found_all:
         return None
+    return models
 
 models = load_models()
 if not models:
@@ -87,7 +103,7 @@ with tabs[0]:
         }])
 
         try:
-            # Run predictions
+            # Run predictions (no negative values)
             time_pred = max(0, models["time_to_hire_days"].predict(input_data)[0])
             cost_pred = max(0, models["cost_per_hire"].predict(input_data)[0])
             offer_pred = np.clip(models["offer_acceptance_rate"].predict(input_data)[0] * 100, 0, 100)
