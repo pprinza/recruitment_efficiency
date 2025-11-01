@@ -213,81 +213,120 @@ with tab_top10:
         )
 
 # ==========================================================
-# BATCH PREDICTION TAB 
+# BATCH PREDICTION TAB (UPLOAD CSV + FEATURE IMPORTANCE)
 # ==========================================================
 with tab_predict:
-    st.header("Batch Prediction — Recruitment Outcome Estimator")
+    st.header("Batch Prediction — Recruitment Simulation & Model Explainability")
+
     st.markdown("""
-    Gunakan model untuk memprediksi hasil berdasarkan **department**, **source**, dan **job title** yang dipilih.
-    Prediksi mencakup tiga metrik utama:
-    - Time to Hire (days)
-    - Cost per Hire ($)
-    - Offer Acceptance Rate (%)
+    Unggah file CSV berisi data rekrutmen, jalankan prediksi untuk **Time to Hire**, **Cost per Hire**, 
+    dan **Offer Acceptance Rate**, lalu unduh hasil prediksi.  
+    Dashboard ini juga menampilkan **Feature Importance** dari setiap model untuk membantu menjelaskan pengaruh fitur.
     """)
 
-    if not models_available:
-        st.error("Model file (.pkl) tidak ditemukan. Silakan unggah model terlebih dahulu ke repository GitHub.")
+    uploaded_file = st.file_uploader("📁 Upload CSV File", type=["csv"])
+
+    if uploaded_file is not None:
+        try:
+            # Load uploaded dataset
+            user_df = pd.read_csv(uploaded_file)
+            st.subheader("📋 Data Preview")
+            st.dataframe(user_df.head(), use_container_width=True)
+
+            # pastikan model tersedia
+            if not models_available:
+                st.error("Model file (.pkl) tidak ditemukan di direktori retrain_outputs/")
+            else:
+                st.divider()
+                st.info("⏳ Running prediction... Please wait.")
+
+                preds = {}
+
+                # Prediksi untuk masing-masing target
+                for key, model in models.items():
+                    if model is None:
+                        preds[key] = np.nan
+                        continue
+
+                    # pastikan kolom sesuai dengan feature_names_in_
+                    if hasattr(model, "feature_names_in_"):
+                        model_features = model.feature_names_in_
+                        missing = [f for f in model_features if f not in user_df.columns]
+                        for m in missing:
+                            user_df[m] = 0
+                        X_input = user_df[model_features]
+                    else:
+                        X_input = user_df.select_dtypes(include=[np.number])
+
+                    preds[key] = model.predict(X_input)
+
+                # gabungkan hasil prediksi ke dataframe
+                user_df["pred_time_to_hire_days"] = np.clip(preds.get("time_to_hire_days", np.nan), 0, None)
+                user_df["pred_cost_per_hire"] = np.clip(preds.get("cost_per_hire", np.nan), 0, None)
+                user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer_acceptance_rate", np.nan), 0, 1)
+
+                st.success("✅ Prediction completed successfully!")
+                st.subheader("📊 Prediction Results")
+                st.dataframe(
+                    user_df[
+                        [
+                            "department", "source", "job_title",
+                            "pred_time_to_hire_days", "pred_cost_per_hire", "pred_offer_acceptance_rate"
+                        ]
+                    ].head(10),
+                    use_container_width=True
+                )
+
+                # Download hasil prediksi
+                csv_download = user_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Download Predicted Results (CSV)",
+                    data=csv_download,
+                    file_name="predicted_recruitment_outcomes.csv",
+                    mime="text/csv",
+                )
+
+                # ==========================================================
+                # FEATURE IMPORTANCE VISUALIZATION
+                # ==========================================================
+                st.divider()
+                st.subheader("🔍 Model Feature Importance")
+
+                import matplotlib.pyplot as plt
+
+                for key, model in models.items():
+                    if hasattr(model, "feature_importances_"):
+                        importance_df = pd.DataFrame({
+                            "Feature": model.feature_names_in_,
+                            "Importance": model.feature_importances_
+                        }).sort_values("Importance", ascending=False).head(10)
+
+                        st.markdown(f"**Top 10 Important Features — {key.replace('_', ' ').title()}**")
+
+                        fig, ax = plt.subplots()
+                        ax.barh(importance_df["Feature"], importance_df["Importance"])
+                        ax.set_xlabel("Importance")
+                        ax.set_ylabel("Feature")
+                        ax.invert_yaxis()
+                        st.pyplot(fig)
+
+                    elif hasattr(model, "coef_"):
+                        # untuk model linear (ridge / lasso)
+                        importance_df = pd.DataFrame({
+                            "Feature": model.feature_names_in_,
+                            "Coefficient": model.coef_.flatten()
+                        }).sort_values("Coefficient", ascending=False).head(10)
+
+                        st.markdown(f"**Top 10 Coefficients — {key.replace('_', ' ').title()}**")
+
+                        fig, ax = plt.subplots()
+                        ax.barh(importance_df["Feature"], importance_df["Coefficient"])
+                        ax.set_xlabel("Coefficient")
+                        ax.set_ylabel("Feature")
+                        ax.invert_yaxis()
+                        st.pyplot(fig)
+
+        except Exception as e:
+            st.error(f"Gagal menjalankan prediksi: {e}")
     else:
-        # Dropdown interaktif
-        dept_list = sorted(df['department'].dropna().unique())
-        selected_dept = st.selectbox("Pilih Department", dept_list)
-
-        filtered_sources = df[df['department'] == selected_dept]['source'].unique()
-        selected_source = st.selectbox("Pilih Source", sorted(filtered_sources))
-
-        filtered_jobs = df[df['department'] == selected_dept]['job_title'].unique()
-        selected_job = st.selectbox("Pilih Job Title", sorted(filtered_jobs))
-
-        if st.button("Run Prediction"):
-            try:
-                # Gunakan subset data sesuai kombinasi user
-                subset = df[
-                    (df['department'] == selected_dept) &
-                    (df['source'] == selected_source) &
-                    (df['job_title'] == selected_job)
-                ]
-
-                # fallback ke subset yang lebih luas kalau data kosong
-                if subset.empty:
-                    subset = df[
-                        (df['department'] == selected_dept) &
-                        (df['source'] == selected_source)
-                    ]
-                if subset.empty:
-                    subset = df[
-                        (df['department'] == selected_dept)
-                    ]
-                if subset.empty:
-                    subset = df.copy()
-
-                # ambil rata-rata numerik sebagai input template
-                input_data = subset.mean(numeric_only=True).to_frame().T
-                input_data["department"] = selected_dept
-                input_data["source"] = selected_source
-                input_data["job_title"] = selected_job
-
-                # pastikan kolom sesuai urutan df asli
-                input_data = input_data.reindex(columns=df.columns, fill_value=0)
-
-                # lakukan prediksi
-                pred_time = models["time"].predict(input_data)[0]
-                pred_cost = models["cost"].predict(input_data)[0]
-                pred_offer = models["offer"].predict(input_data)[0]
-
-                # batasi agar tidak negatif
-                pred_time = np.clip(pred_time, 0, None)
-                pred_cost = np.clip(pred_cost, 0, None)
-                pred_offer = np.clip(pred_offer, 0, 1)
-
-                # tampilkan hasil
-                st.success("Prediction completed successfully.")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
-                col2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
-                col3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
-
-                # tambahkan info kombinasi data
-                st.markdown(f"**Input combination used:** {selected_dept} / {selected_source} / {selected_job}")
-
-            except Exception as e:
-                st.error(f"Gagal menjalankan prediksi: {e}")
+        st.info("📤 Silakan unggah file CSV terlebih dahulu untuk menjalankan simulasi prediksi.")
