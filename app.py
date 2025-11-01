@@ -219,9 +219,8 @@ with tab_predict:
     st.header("Batch Prediction — Recruitment Simulation & Model Explainability")
 
     st.markdown("""
-    Unggah file CSV berisi data rekrutmen, jalankan prediksi untuk **Time to Hire**, **Cost per Hire**, 
-    dan **Offer Acceptance Rate**, lalu unduh hasil prediksi.  
-    Dashboard ini juga menampilkan **Feature Importance** dari setiap model untuk membantu menjelaskan pengaruh fitur.
+    Upload a CSV file containing your recruitment data, run predictions for Time to Hire, Cost per Hire, and Offer Acceptance Rate, and download the results.
+    This dashboard also displays the Feature Importance of each model to help explain the impact of each feature.
     """)
 
     uploaded_file = st.file_uploader("📁 Upload CSV File", type=["csv"])
@@ -230,7 +229,7 @@ with tab_predict:
         try:
             # Load uploaded dataset
             user_df = pd.read_csv(uploaded_file)
-            st.subheader("📋 Data Preview")
+            st.subheader("Data Preview")
             st.dataframe(user_df.head(), use_container_width=True)
 
             # pastikan model tersedia
@@ -265,8 +264,8 @@ with tab_predict:
                 user_df["pred_cost_per_hire"] = np.clip(preds.get("cost_per_hire", np.nan), 0, None)
                 user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer_acceptance_rate", np.nan), 0, 1)
 
-                st.success("✅ Prediction completed successfully!")
-                st.subheader("📊 Prediction Results")
+                st.success("Prediction completed successfully!")
+                st.subheader("Prediction Results")
                 st.dataframe(
                     user_df[
                         [
