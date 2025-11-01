@@ -1,5 +1,5 @@
 # ==========================================================
-# Recruitment Efficiency Insight Dashboard (Final Version)
+# Recruitment Efficiency Insight Dashboard (Final Clean Version)
 # ==========================================================
 # Author: NeuraLens
 # Purpose: Dashboard for recruitment analytics & prediction
@@ -10,9 +10,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import io  
-import matplotlib.pyplot as plt
-
+import io
 
 # ----------------------------------------------------------
 # PAGE CONFIGURATION
@@ -21,12 +19,13 @@ st.set_page_config(page_title="Recruitment Efficiency Dashboard", layout="wide")
 st.title("Recruitment Efficiency Insight Dashboard")
 
 st.markdown("""
-This dashboard helps HR teams analyze and predict recruitment efficiency across
-departments, sources, and job roles. It uses three key metrics:
+Analyze and predict recruitment efficiency across departments, sources, and job roles
+using AI-powered metrics.
 
-- **Time to Hire**
-- **Cost per Hire**
-- **Offer Acceptance Rate**
+**Key KPIs:**
+- Time to Hire
+- Cost per Hire
+- Offer Acceptance Rate
 """)
 
 # ----------------------------------------------------------
@@ -38,7 +37,6 @@ MODEL_FILES = {
     "cost": "model_cost_per_hire_FEv3.pkl",
     "offer": "model_offer_acceptance_rate_FEv3.pkl",
 }
-
 
 @st.cache_resource
 def load_models():
@@ -56,7 +54,6 @@ def load_models():
             missing.append(fname)
     return models, missing
 
-
 models, missing_models = load_models()
 models_available = any(m is not None for m in models.values())
 
@@ -69,7 +66,6 @@ def load_data():
         return pd.read_csv("final_recruitment_data_FEv3.csv")
     else:
         return None
-
 
 base_df = load_data()
 
@@ -96,33 +92,33 @@ def compute_efficiency(df):
     )
     return df
 
-
 # ----------------------------------------------------------
 # CREATE TABS
 # ----------------------------------------------------------
-tab_exec, tab_dept, tab_source, tab_job, tab_top10, tab_predict = st.tabs([
+tab_exec, tab_dept, tab_source, tab_job, tab_top10, tab_predict, tab_importance = st.tabs([
     "Executive Summary",
     "Department Efficiency",
     "Source Efficiency",
     "Job Role Efficiency",
-    "Top 10 Most Efficient Recruitments",
-    "Batch Prediction"
+    "Top 10 Most Efficient",
+    "Batch Prediction",
+    "Feature Importance"
 ])
 
 # ----------------------------------------------------------
 # EXECUTIVE SUMMARY
 # ----------------------------------------------------------
 with tab_exec:
-    st.header("Recruitment KPI Scorecard — Executive Overview")
+    st.header("Recruitment KPI — Executive Overview")
 
     if base_df is None:
         st.warning("Default dataset not found. Please upload via Batch Prediction tab.")
     else:
         df = compute_efficiency(base_df)
 
-        avg_time = round(df["time_to_hire_days"].mean(), 1)
-        avg_cost = round(df["cost_per_hire"].mean(), 1)
-        avg_accept = round(df["offer_acceptance_rate"].mean() * 100, 1)
+        avg_time = int(df["time_to_hire_days"].mean())
+        avg_cost = int(df["cost_per_hire"].mean())
+        avg_accept = round(df["offer_acceptance_rate"].mean() * 100)
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Average Time to Hire (days)", f"{avg_time}")
@@ -137,9 +133,9 @@ with tab_exec:
         job_best = df.groupby("job_title")["efficiency_score"].mean().sort_values(ascending=False)
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("Most Efficient Department", dept_best.index[0])
-        col2.metric("Most Efficient Job Title", job_best.index[0])
-        col3.metric("Most Efficient Source", src_best.index[0])
+        col1.metric("Top Department", dept_best.index[0])
+        col2.metric("Top Job Title", job_best.index[0])
+        col3.metric("Top Source", src_best.index[0])
 
 # ----------------------------------------------------------
 # DEPARTMENT EFFICIENCY
@@ -187,7 +183,7 @@ with tab_job:
         st.dataframe(job_summary.reset_index(), use_container_width=True, hide_index=True)
 
 # ----------------------------------------------------------
-# TOP 10 MOST EFFICIENT RECRUITMENTS
+# TOP 10 MOST EFFICIENT
 # ----------------------------------------------------------
 with tab_top10:
     st.header("Top 10 Most Efficient Recruitments")
@@ -206,7 +202,7 @@ with tab_top10:
 # ----------------------------------------------------------
 with tab_predict:
     st.header("Batch Prediction (Upload CSV)")
-    st.write("Upload your recruitment dataset to predict Time to Hire, Cost per Hire, and Offer Acceptance Rate.")
+    st.write("Upload your dataset to predict Time to Hire, Cost per Hire, and Offer Acceptance Rate.")
 
     uploaded = st.file_uploader("Upload CSV", type=["csv"])
 
@@ -215,7 +211,6 @@ with tab_predict:
         st.subheader("Data Preview")
         st.dataframe(user_df.head(), use_container_width=True)
 
-        # try model prediction
         if models_available:
             preds = {}
             for key, model in models.items():
@@ -228,9 +223,15 @@ with tab_predict:
 
             if any(v is not None for v in preds.values()):
                 st.success("Prediction completed successfully.")
-                user_df["pred_time_to_hire_days"] = preds.get("time", np.nan)
-                user_df["pred_cost_per_hire"] = preds.get("cost", np.nan)
-                user_df["pred_offer_acceptance_rate"] = preds.get("offer", np.nan)
+
+                # 🔹 Round all predictions (no decimals)
+                user_df["pred_time_to_hire_days"] = np.round(preds.get("time", np.nan)).astype(int)
+                user_df["pred_cost_per_hire"] = np.round(preds.get("cost", np.nan)).astype(int)
+                user_df["pred_offer_acceptance_rate"] = np.round(preds.get("offer", np.nan), 2)
+
+                # 🔹 Clip negatives (avoid - values)
+                user_df["pred_time_to_hire_days"] = user_df["pred_time_to_hire_days"].clip(lower=0)
+                user_df["pred_cost_per_hire"] = user_df["pred_cost_per_hire"].clip(lower=0)
 
                 show_cols = [
                     "department", "source", "job_title",
@@ -239,7 +240,7 @@ with tab_predict:
                 ]
                 st.dataframe(user_df[show_cols].head(20), use_container_width=True)
 
-                # ✅ --- DOWNLOAD BUTTON ---
+                # 🔹 Download prediction
                 csv_buffer = io.BytesIO()
                 user_df.to_csv(csv_buffer, index=False)
                 st.download_button(
@@ -248,83 +249,80 @@ with tab_predict:
                     file_name="prediction_results.csv",
                     mime="text/csv"
                 )
-
-# ✅ --- FEATURE IMPORTANCE SECTION (TABLE ONLY, AUTO DETECT ENCODER) ---
-st.subheader("🔍 Feature Importance Overview")
-
-found_any = False
-for key, model in models.items():
-    if model is None:
-        continue
-
-    feature_names = list(user_df.columns)
-    model_inner = None
-    encoder_found = False
-
-    # --- Deteksi pipeline ---
-    if hasattr(model, "named_steps"):
-        # Cari step encoder yang punya get_feature_names_out()
-        for step_name, step_obj in model.named_steps.items():
-            if hasattr(step_obj, "get_feature_names_out"):
-                try:
-                    feature_names = step_obj.get_feature_names_out()
-                    st.caption(f"🧩 Extracted encoded feature names from step '{step_name}' ({len(feature_names)} features).")
-                    encoder_found = True
-                    break
-                except Exception:
-                    pass
-
-        # Cari step model utama
-        for step_name, step_obj in model.named_steps.items():
-            if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
-                model_inner = step_obj
-                break
-    else:
-        model_inner = model
-
-    if model_inner is None:
-        continue
-
-    st.markdown(f"**Model:** {key.upper()}")
-
-    try:
-        # Ambil nilai importance
-        if hasattr(model_inner, "feature_importances_"):
-            importances = model_inner.feature_importances_
-        elif hasattr(model_inner, "coef_"):
-            importances = np.abs(model_inner.coef_).flatten()
+            else:
+                st.error("All models failed to predict.")
         else:
-            st.warning("This model does not expose feature importances or coefficients.")
+            st.warning("No model files found (.pkl). Please check deployment directory.")
+
+# ----------------------------------------------------------
+# FEATURE IMPORTANCE TAB
+# ----------------------------------------------------------
+with tab_importance:
+    st.header("Feature Importance Overview")
+
+    found_any = False
+    for key, model in models.items():
+        if model is None:
             continue
 
-        # Cek panjang
-        if len(importances) != len(feature_names):
-            st.warning(
-                f"⚠️ Feature count mismatch for model '{key}'. "
-                f"Model has {len(importances)} features, but name list has {len(feature_names)}. "
-                f"Feature importance cannot be mapped."
+        feature_names = []
+        model_inner = None
+
+        # --- Detect encoder step automatically
+        if hasattr(model, "named_steps"):
+            for step_name, step_obj in model.named_steps.items():
+                if hasattr(step_obj, "get_feature_names_out"):
+                    try:
+                        feature_names = step_obj.get_feature_names_out()
+                        st.caption(f"🧩 Extracted encoded feature names from '{step_name}' ({len(feature_names)} features).")
+                        break
+                    except Exception:
+                        pass
+
+            # Find final model
+            for step_name, step_obj in model.named_steps.items():
+                if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
+                    model_inner = step_obj
+                    break
+        else:
+            model_inner = model
+
+        if model_inner is None:
+            continue
+
+        st.markdown(f"**Model:** {key.upper()}")
+
+        try:
+            if hasattr(model_inner, "feature_importances_"):
+                importances = model_inner.feature_importances_
+            elif hasattr(model_inner, "coef_"):
+                importances = np.abs(model_inner.coef_).flatten()
+            else:
+                st.warning("Model does not provide feature importance.")
+                continue
+
+            if len(importances) != len(feature_names):
+                st.warning(f"⚠️ Feature count mismatch for model '{key}'. Cannot display table.")
+                continue
+
+            fi = (
+                pd.DataFrame({
+                    "Feature": feature_names,
+                    "Importance": importances
+                })
+                .sort_values("Importance", ascending=False)
+                .head(15)
             )
-            continue
 
-        # Tampilkan top 10 fitur saja
-        fi = (
-            pd.DataFrame({
-                "Feature": feature_names,
-                "Importance": importances
-            })
-            .sort_values("Importance", ascending=False)
-            .head(10)
-        )
+            st.dataframe(fi, use_container_width=True, hide_index=True)
+            found_any = True
+            st.divider()
 
-        st.dataframe(fi, use_container_width=True, hide_index=True)
-        st.divider()
-        found_any = True
+        except Exception as e:
+            st.error(f"Error reading feature importance for model '{key}': {e}")
 
-    except Exception as e:
-        st.error(f"Error extracting feature importance for model '{key}': {e}")
-
-if not found_any:
-    st.info("No valid feature importance or coefficient data found for any model.")
+    if not found_any:
+        st.info("No valid feature importance data found.")
 
 # ----------------------------------------------------------
 # FOOTER / MODEL STATUS
@@ -333,4 +331,4 @@ st.divider()
 if missing_models:
     st.info(f"Missing model files: {missing_models}")
 else:
-    st.caption("All model files loaded successfully.")
+    st.caption("✅ All model files loaded successfully.")
