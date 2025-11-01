@@ -82,9 +82,30 @@ with tab1:
     col3.metric("Offer Acceptance Rate (%)", f"{avg_accept}%")
 
     st.divider()
+
     st.subheader("The Most Efficient Department")
-    best_dept = df.groupby("department")[["time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
-    st.dataframe(best_dept.head(1).reset_index(), use_container_width=True)
+    best_dept = (
+        df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
+        .mean()
+        .sort_values("efficiency_score", ascending=False)
+    )
+    st.dataframe(best_dept.head(1).reset_index(), use_container_width=True, hide_index=True)
+
+    st.subheader("The Most Efficient Source")
+    best_source = (
+        df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
+        .mean()
+        .sort_values("efficiency_score", ascending=False)
+    )
+    st.dataframe(best_source.head(1).reset_index(), use_container_width=True, hide_index=True)
+
+    st.subheader("The Most Efficient Job Title")
+    best_role = (
+        df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
+        .mean()
+        .sort_values("efficiency_score", ascending=False)
+    )
+    st.dataframe(best_role.head(1).reset_index(), use_container_width=True, hide_index=True)
 
 with tab2:
     st.header("Department Efficiency Overview (Sorted by Efficiency Score)")
