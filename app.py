@@ -223,7 +223,21 @@ with tab_predict:
         if st.button("Run Prediction"):
             try:
                 # Gunakan mean sebagai template agar stabil
-                input_data = df.mean(numeric_only=True).to_frame().T
+                subset = df[(df['department'] == selected_dept) & 
+            (df['source'] == selected_source) & 
+            (df['job_title'] == selected_job)]
+
+if subset.empty:
+    subset = df[(df['department'] == selected_dept) & (df['source'] == selected_source)]
+
+if subset.empty:
+    subset = df.copy()
+
+input_data = subset.mean(numeric_only=True).to_frame().T
+input_data["department"] = selected_dept
+input_data["source"] = selected_source
+input_data["job_title"] = selected_job
+
 
                 # Tambahkan kolom kategorikal sesuai input user
                 input_data["department"] = selected_dept
