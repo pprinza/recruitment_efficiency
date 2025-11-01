@@ -249,7 +249,7 @@ with tab_predict:
                     mime="text/csv"
                 )
 
-# ✅ --- FEATURE IMPORTANCE SECTION (AUTO DETECT ENCODER) ---
+# ✅ --- FEATURE IMPORTANCE SECTION (TABLE ONLY, AUTO DETECT ENCODER) ---
 st.subheader("🔍 Feature Importance Overview")
 
 found_any = False
@@ -263,7 +263,7 @@ for key, model in models.items():
 
     # --- Deteksi pipeline ---
     if hasattr(model, "named_steps"):
-        # Cari step yang punya get_feature_names_out() → biasanya encoder/transformer
+        # Cari step encoder yang punya get_feature_names_out()
         for step_name, step_obj in model.named_steps.items():
             if hasattr(step_obj, "get_feature_names_out"):
                 try:
@@ -274,7 +274,7 @@ for key, model in models.items():
                 except Exception:
                     pass
 
-        # Cari step model utama (yang punya feature_importances_ atau coef_)
+        # Cari step model utama
         for step_name, step_obj in model.named_steps.items():
             if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
                 model_inner = step_obj
@@ -285,9 +285,10 @@ for key, model in models.items():
     if model_inner is None:
         continue
 
-    st.write(f"**Model:** {key.upper()}")
+    st.markdown(f"**Model:** {key.upper()}")
 
     try:
+        # Ambil nilai importance
         if hasattr(model_inner, "feature_importances_"):
             importances = model_inner.feature_importances_
         elif hasattr(model_inner, "coef_"):
@@ -296,7 +297,7 @@ for key, model in models.items():
             st.warning("This model does not expose feature importances or coefficients.")
             continue
 
-        # --- Cek kesesuaian panjang ---
+        # Cek panjang
         if len(importances) != len(feature_names):
             st.warning(
                 f"⚠️ Feature count mismatch for model '{key}'. "
@@ -305,19 +306,17 @@ for key, model in models.items():
             )
             continue
 
-        # --- Tampilkan hasil ---
-        fi = pd.DataFrame({
-            "Feature": feature_names,
-            "Importance": importances
-        }).sort_values("Importance", ascending=False).head(10)
+        # Tampilkan top 10 fitur saja
+        fi = (
+            pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": importances
+            })
+            .sort_values("Importance", ascending=False)
+            .head(10)
+        )
 
-        fig, ax = plt.subplots()
-        ax.barh(fi["Feature"], fi["Importance"])
-        ax.set_xlabel("Importance Score")
-        ax.set_ylabel("Feature")
-        ax.invert_yaxis()
-        st.pyplot(fig)
-        st.dataframe(fi, use_container_width=True)
+        st.dataframe(fi, use_container_width=True, hide_index=True)
         st.divider()
         found_any = True
 
