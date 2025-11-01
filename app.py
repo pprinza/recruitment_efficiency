@@ -107,7 +107,7 @@ with tab1:
 # DEPARTMENT INSIGHTS
 # ==========================================================
 with tab2:
-    st.header("🏢 Department Efficiency")
+    st.header("Department Efficiency")
     dept_summary = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
         .mean()
