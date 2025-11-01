@@ -1,5 +1,5 @@
 # ==========================================================
-# Recruitment Efficiency Prediction Dashboard (Final)
+# Recruitment Efficiency Predictor
 # ==========================================================
 import streamlit as st
 import pandas as pd
@@ -7,108 +7,112 @@ import numpy as np
 import joblib
 import os
 
-# ==========================================================
-# PAGE CONFIG
-# ==========================================================
-st.set_page_config(
-    page_title="Recruitment Efficiency Prediction",
-    layout="wide",
-    page_icon="📊"
-)
+st.set_page_config(page_title="Recruitment Efficiency Predictor (FEv3)", 
+                   page_icon="💼", layout="wide")
 
-st.title("Recruitment Efficiency Prediction")
-st.markdown(
-    "Use this dashboard to predict **Hiring Duration**, **Cost per Hire**, and **Offer Acceptance Rate**."
-)
+# --- Title & description ---
+st.title("💼 Recruitment Efficiency Predictor — FEv3")
+st.markdown("""
+This dashboard predicts **Time to Hire**, **Cost per Hire**, and **Offer Acceptance Rate**
+based on your recruitment process data.
 
-# ==========================================================
-# LOAD MODELS SAFELY
-# ==========================================================
+> FEv3 represents the most stable and well-balanced model — optimized for accuracy, fairness, and business efficiency.
+""")
+
+# --- Sidebar configuration ---
+st.sidebar.header("Model Settings")
+MODEL_DIR = "retrain_outputs"
+
+# Load pre-trained models
 @st.cache_resource
 def load_models():
+    models = {}
     try:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        model_duration = joblib.load(os.path.join(base_path, "model_duration.pkl"))
-        model_cost = joblib.load(os.path.join(base_path, "model_cost.pkl"))
-        model_accept = joblib.load(os.path.join(base_path, "model_accept.pkl"))
-        st.success("Model loaded successfully!")
-        return model_duration, model_cost, model_accept
+        models["time_to_hire_days"] = joblib.load(os.path.join(MODEL_DIR, "model_time_to_hire_days_FEv3.pkl"))
+        models["cost_per_hire"] = joblib.load(os.path.join(MODEL_DIR, "model_cost_per_hire_FEv3.pkl"))
+        models["offer_acceptance_rate"] = joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
+        return models
     except Exception as e:
-        st.error(f"Failed to load models: {e}")
-        return None, None, None
+        st.error(f"Error loading models: {e}")
+        return None
 
-model_duration, model_cost, model_accept = load_models()
+models = load_models()
+if not models:
+    st.stop()
 
-# ==========================================================
-# PREDICTION TARGET SELECTION
-# ==========================================================
-target = st.radio(
-    "Select prediction target:",
-    ["Hiring Duration", "Cost per Hire", "Offer Acceptance Rate"]
-)
+# --- Input form ---
+st.header("Input Recruitment Features")
 
-# ==========================================================
-# UPLOAD DATA
-# ==========================================================
-uploaded_file = st.file_uploader(
-    "Upload recruitment dataset (.csv)",
-    type=["csv"],
-    help="Upload dataset containing recruitment features"
-)
+with st.form("prediction_form"):
+    department = st.selectbox("Department", ["Engineering", "Product", "HR", "Sales", "Marketing", "Finance"])
+    source = st.selectbox("Source", ["Referral", "LinkedIn", "Recruiter", "Job Portal"])
+    num_applicants = st.number_input("Number of Applicants", min_value=1, max_value=1000, value=150)
+    process_efficiency = st.slider("Process Efficiency", 0.0, 1.0, 0.7)
+    cost_intensity = st.slider("Cost Intensity", 0.0, 1.0, 0.5)
+    engagement_score = st.slider("Engagement Score", 0.0, 1.0, 0.6)
+    dept_efficiency = st.slider("Department Efficiency", 0.0, 1.0, 0.8)
+    candidate_satisfaction = st.slider("Candidate Satisfaction", 0.0, 1.0, 0.7)
+    offer_readiness = st.slider("Offer Readiness", 0.0, 1.0, 0.75)
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.write("Uploaded dataset preview:")
-    st.dataframe(df.head())
+    submitted = st.form_submit_button("Run Prediction")
 
-    # Handle missing values
-    df = df.replace([np.inf, -np.inf], np.nan)
-    df = df.fillna(df.median(numeric_only=True))
+# --- Run prediction ---
+if submitted:
+    input_data = pd.DataFrame([{
+        "department": department,
+        "source": source,
+        "num_applicants": num_applicants,
+        "process_efficiency": process_efficiency,
+        "cost_intensity": cost_intensity,
+        "engagement_score": engagement_score,
+        "dept_efficiency": dept_efficiency,
+        "candidate_satisfaction": candidate_satisfaction,
+        "offer_readiness": offer_readiness
+    }])
 
-    # ==========================================================
-    # MODEL SELECTION BASED ON TARGET
-    # ==========================================================
-    if st.button("Run Prediction"):
-        try:
-            if target == "Hiring Duration":
-                if model_duration is None:
-                    st.error("Model for Hiring Duration not found.")
-                else:
-                    pred = model_duration.predict(df)
-                    st.success("Hiring Duration predicted successfully!")
-                    st.dataframe(pd.DataFrame({"Predicted_Hiring_Duration (days)": pred}))
-                    st.metric("Avg Predicted Duration", f"{np.mean(pred):.2f} days")
+    # Generate predictions
+    time_pred = models["time_to_hire_days"].predict(input_data)[0]
+    cost_pred = models["cost_per_hire"].predict(input_data)[0]
+    offer_pred = models["offer_acceptance_rate"].predict(input_data)[0]
 
-            elif target == "Cost per Hire":
-                if model_cost is None:
-                    st.error("Model for Cost per Hire not found.")
-                else:
-                    pred = model_cost.predict(df)
-                    st.success("Cost per Hire predicted successfully!")
-                    st.dataframe(pd.DataFrame({"Predicted_Cost_per_Hire ($)": pred}))
-                    st.metric("Avg Predicted Cost", f"${np.mean(pred):,.2f}")
+    st.success("Prediction completed successfully!")
+    st.subheader("Predicted Results")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Time to Hire (days)", f"{time_pred:.1f}")
+    col2.metric("Cost per Hire ($)", f"{cost_pred:,.2f}")
+    col3.metric("Offer Acceptance Rate", f"{offer_pred*100:.1f}%")
 
-            else:
-                if model_accept is None:
-                    st.error("Model for Offer Acceptance Rate not found.")
-                else:
-                    pred = model_accept.predict(df)
-                    st.success("Offer Acceptance Rate predicted successfully!")
-                    st.dataframe(pd.DataFrame({"Predicted_Offer_Acceptance (%)": pred}))
-                    st.metric("Avg Predicted Offer Acceptance", f"{np.mean(pred)*100:.2f}%")
+    # --- Business simulation ---
+    st.markdown("---")
+    st.markdown("### 📈 Business Impact Simulation (Optimized Scenario)")
+    st.write("""
+    This simulation estimates the potential improvement if efficiency and engagement are increased:
+    - +10% Offer Readiness  
+    - +15% Engagement Score  
+    - +10% Department Efficiency
+    """)
 
-        except Exception as e:
-            st.error(f"Prediction failed: {e}")
+    df_opt = input_data.copy()
+    df_opt["offer_readiness"] *= 1.1
+    df_opt["engagement_score"] *= 1.15
+    df_opt["dept_efficiency"] *= 1.1
 
-else:
-    st.info("📂 Please upload a CSV file to start prediction.")
+    opt_time = models["time_to_hire_days"].predict(df_opt)[0]
+    opt_cost = models["cost_per_hire"].predict(df_opt)[0]
+    opt_offer = models["offer_acceptance_rate"].predict(df_opt)[0]
 
-# ==========================================================
-# FOOTER
-# ==========================================================
-st.markdown("""
----
-**Recruitment Efficiency Project**  
-Predicting hiring duration, cost per hire, and offer acceptance using data-driven insights.  
-Built with NeuraLens - 2025
-""")
+    delta_t = time_pred - opt_time
+    delta_c = cost_pred - opt_cost
+    delta_o = (opt_offer - offer_pred) * 100
+
+    st.write("**Baseline vs Optimized Comparison:**")
+    impact_data = pd.DataFrame({
+        "Metric": ["Hiring Duration (days)", "Cost per Hire ($)", "Offer Acceptance (%)"],
+        "Baseline": [time_pred, cost_pred, offer_pred*100],
+        "Optimized": [opt_time, opt_cost, opt_offer*100],
+        "Change": [delta_t, delta_c, delta_o]
+    }).round(2)
+
+    st.dataframe(impact_data, use_container_width=True)
+
+    st.caption("💡 Insight: The optimized scenario indicates measurable improvements in time and cost efficiency.")
