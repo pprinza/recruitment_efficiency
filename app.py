@@ -224,10 +224,9 @@ with tab_predict:
                         st.warning(f"Model '{key}' failed: {e}")
 
             if any(v is not None for v in preds.values()):
-                st.success("Prediction completed successfully.")
-                user_df["pred_time_to_hire_days"] = preds.get("time", np.nan)
-                user_df["pred_cost_per_hire"] = preds.get("cost", np.nan)
-                user_df["pred_offer_acceptance_rate"] = preds.get("offer", np.nan)
+            user_df["pred_time_to_hire_days"] = np.clip(preds.get("time", np.nan), 0, None)
+            user_df["pred_cost_per_hire"] = np.clip(preds.get("cost", np.nan), 0, None)
+            user_df["pred_offer_acceptance_rate"] = np.clip(preds.get("offer", np.nan), 0, None)
 
                 show_cols = [
                     "department", "source", "job_title",
