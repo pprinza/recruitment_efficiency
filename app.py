@@ -199,7 +199,7 @@ with tab_top10:
         )
 
 # ==========================================================
-# BATCH PREDICTION TAB (Department & Source Input)
+# BATCH PREDICTION TAB (Stable Version with Mean Feature Template)
 # ==========================================================
 with tab_predict:
     st.header("Batch Prediction — Recruitment Outcome Estimator")
@@ -220,29 +220,36 @@ with tab_predict:
         # Tombol prediksi
         if st.button("Run Prediction"):
             try:
-                # Buat data dummy satu baris untuk prediksi
-                input_data = df.sample(1).copy()
+                # Gunakan rata-rata semua fitur numerik untuk menjaga kestabilan distribusi input
+                input_data = df.mean(numeric_only=True).to_frame().T
 
-                # Ubah kolom department & source sesuai pilihan user
+                # Tambahkan kolom kategorikal sesuai input user
                 input_data["department"] = selected_dept
                 input_data["source"] = selected_source
 
-                # Jalankan model prediction
+                # Pastikan urutan kolom sama dengan data training
+                input_data = input_data[df.columns.intersection(input_data.columns)]
+
+                # Jalankan prediksi
                 pred_time = models["time"].predict(input_data)[0]
                 pred_cost = models["cost"].predict(input_data)[0]
                 pred_offer = models["offer"].predict(input_data)[0]
 
-                # Pastikan tidak ada nilai negatif
+                # Pastikan hasil prediksi tidak negatif dan proporsional
                 pred_time = np.clip(pred_time, 0, None)
                 pred_cost = np.clip(pred_cost, 0, None)
                 pred_offer = np.clip(pred_offer, 0, 1)
 
                 # Tampilkan hasil prediksi langsung
                 st.success("Prediction completed successfully.")
+
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
                 col2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
                 col3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
+
+                # Debug info opsional (bisa dihapus)
+                # st.write("Feature input digunakan model:", list(input_data.columns))
 
             except Exception as e:
                 st.error(f"Gagal menjalankan prediksi: {e}")
