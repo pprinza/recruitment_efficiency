@@ -229,16 +229,7 @@ with tab_predict:
 
                 user_df["pred_offer_acceptance_rate"] = offer_s
 
-                # Add predicted completion date only where time exists (keeps NaT if no prediction)
-                comp_dates = pd.Series([pd.NaT] * len(user_df), dtype="datetime64[ns]")
-                mask = pd.notna(user_df["pred_time_to_hire_days"])
-                if mask.any():
-                    today = pd.Timestamp(dt.date.today())
-                    # ensure integer days
-                    days_int = user_df.loc[mask, "pred_time_to_hire_days"].astype(int)
-                    comp_dates.loc[mask] = today + pd.to_timedelta(days_int, unit="D")
-                user_df["pred_hire_completion_date"] = comp_dates
-
+            
                 # Show top rows
                 show_cols = [
                     "department", "source", "job_title",
