@@ -9,10 +9,19 @@ import numpy as np
 import joblib
 
 # ----------------------------------------------------------
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ----------------------------------------------------------
 st.set_page_config(page_title="Recruitment Efficiency Dashboard", layout="wide")
-st.title("Recruitment Efficiency Insight Dashboard")
+st.title("Recruitment Efficiency Prediction & Insight Dashboard")
+
+st.markdown("""
+This dashboard helps HR teams understand which departments, sources, and job roles 
+contribute most to overall recruitment efficiency based on three key metrics:
+
+- Time to Hire  
+- Cost per Hire  
+- Offer Acceptance Rate
+""")
 
 # ----------------------------------------------------------
 # MODEL FILES (sesuaikan jika perlu)
