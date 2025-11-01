@@ -249,7 +249,7 @@ with tab_predict:
                     mime="text/csv"
                 )
 
-                # ✅ --- FEATURE IMPORTANCE SECTION (IMPROVED) ---
+# ✅ --- FEATURE IMPORTANCE SECTION (SAFE VERSION) ---
 st.subheader("🔍 Feature Importance Overview")
 
 found_any = False
@@ -257,41 +257,48 @@ for key, model in models.items():
     if model is None:
         continue
 
-    feature_names = user_df.columns
+    feature_names = list(user_df.columns)
+    model_inner = None
 
-    # Coba deteksi jika model adalah pipeline
+    # Cek apakah model berupa pipeline
     if hasattr(model, "named_steps"):
-        # Cari step terakhir yang punya feature_importances_ atau coef_
         for step_name, step_obj in model.named_steps.items():
-            if hasattr(step_obj, "feature_importances_"):
+            if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
                 model_inner = step_obj
                 break
-            elif hasattr(step_obj, "coef_"):
-                model_inner = step_obj
-                break
-        else:
-            model_inner = None
     else:
         model_inner = model
 
-    if model_inner is not None:
+    # --- Jika tidak ada model yang punya importance ---
+    if model_inner is None:
+        continue
+
+    st.write(f"**Model:** {key.upper()}")
+
+    try:
         if hasattr(model_inner, "feature_importances_"):
-            fi = pd.DataFrame({
-                "Feature": feature_names,
-                "Importance": model_inner.feature_importances_
-            }).sort_values("Importance", ascending=False).head(10)
-            st.write(f"**Model:** {key.upper()} — Tree-based importance")
-            found_any = True
+            importances = model_inner.feature_importances_
         elif hasattr(model_inner, "coef_"):
-            fi = pd.DataFrame({
-                "Feature": feature_names,
-                "Importance": np.abs(model_inner.coef_).flatten()
-            }).sort_values("Importance", ascending=False).head(10)
-            st.write(f"**Model:** {key.upper()} — Coefficient magnitude")
-            found_any = True
+            importances = np.abs(model_inner.coef_).flatten()
         else:
+            st.warning("This model does not expose feature importances or coefficients.")
             continue
 
+        # --- Cek panjang antara feature_importances dan feature_names ---
+        if len(importances) != len(feature_names):
+            st.warning(
+                f"⚠️ Feature count mismatch for model '{key}'. "
+                f"Model has {len(importances)} features, but input has {len(feature_names)} columns. "
+                f"Feature importance cannot be mapped."
+            )
+            continue
+
+        fi = pd.DataFrame({
+            "Feature": feature_names,
+            "Importance": importances
+        }).sort_values("Importance", ascending=False).head(10)
+
+        # --- Visualisasi bar chart ---
         fig, ax = plt.subplots()
         ax.barh(fi["Feature"], fi["Importance"])
         ax.set_xlabel("Importance Score")
@@ -300,9 +307,14 @@ for key, model in models.items():
         st.pyplot(fig)
         st.dataframe(fi, use_container_width=True)
         st.divider()
+        found_any = True
+
+    except Exception as e:
+        st.error(f"Error extracting feature importance for model '{key}': {e}")
 
 if not found_any:
-    st.info("No models provide feature importance or coefficient information.")
+    st.info("No valid feature importance or coefficient data found for any model.")
+
 
 
 # ----------------------------------------------------------
