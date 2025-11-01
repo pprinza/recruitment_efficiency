@@ -250,3 +250,38 @@ if missing_models:
     st.info(f"Missing model files: {missing_models}")
 else:
     st.caption("All model files loaded successfully.")
+
+ # Feature Importance
+                st.subheader("🔍 Feature Importance Summary")
+                for key, model in models.items():
+                    if hasattr(model, "feature_importances_"):
+                        imp_df = pd.DataFrame({
+                            "Feature": model.feature_names_in_,
+                            "Importance": model.feature_importances_
+                        }).sort_values("Importance", ascending=False)
+                        st.markdown(f"**Model: {key}**")
+                        st.bar_chart(imp_df.set_index("Feature"))
+
+                # --- 🔽 DOWNLOAD BUTTON ---
+                st.divider()
+                st.subheader("💾 Download Predicted Results")
+
+                # Generate nama file dinamis
+                date_str = datetime.now().strftime("%Y%m%d_%H%M")
+                csv_name = f"recruitment_predictions_{date_str}.csv"
+
+                csv_data = data[display_cols].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Download Prediction Results (CSV)",
+                    data=csv_data,
+                    file_name=csv_name,
+                    mime="text/csv"
+                )
+                st.caption(f"File: `{csv_name}` generated successfully.")
+
+            except Exception as e:
+                st.error(f"Prediction failed: {e}")
+        else:
+            st.warning("⚠️ Model files not found in 'retrain_outputs/'. Please check your repository.")
+    else:
+        st.info("Upload a CSV file to run batch predictions.")
