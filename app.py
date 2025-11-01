@@ -1,19 +1,21 @@
 # ==========================================================
 # Recruitment Efficiency Insight Dashboard
 # ==========================================================
-# Author: NeuraLens
-# Purpose: Data-Driven HR Insight — Department, Source, and Job Title Analysis
+# Author: Patricia Prinza
+# Purpose: Data-Driven HR Insight — Department, Source, Job Title, and Efficiency Ranking
 # ==========================================================
 
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 # ----------------------------------------------------------
 # Page setup
 # ----------------------------------------------------------
 st.set_page_config(
-    page_title="Recruitment Efficiency Insight",
+    page_title="Recruitment Efficiency Insight — FEv3",
+    page_icon="💼",
     layout="wide"
 )
 
@@ -61,13 +63,18 @@ if missing:
 # ==========================================================
 # Tabs for analysis
 # ==========================================================
-tabs = st.tabs(["🏢 Department Efficiency", "🔗 Source Effectiveness", "🧩 Job Title Complexity"])
+tabs = st.tabs([
+    "Department Efficiency",
+    "Source Effectiveness",
+    "Job Title Complexity",
+    "Overall Efficiency Ranking"
+])
 
 # ==========================================================
 # TAB 1 — Department Analysis
 # ==========================================================
 with tabs[0]:
-    st.subheader("🏢 Department Efficiency Overview")
+    st.subheader("Department Efficiency Overview")
 
     dept_summary = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]]
@@ -127,7 +134,7 @@ with tabs[1]:
     st.dataframe(src_summary, use_container_width=True)
 
     # Visualization
-    st.markdown("### Average Cost per Hire by Source")
+    st.markdown("### 📊 Average Cost per Hire by Source")
     fig, ax = plt.subplots(figsize=(6,3))
     src_summary["cost_per_hire"].sort_values().plot(kind="bar", ax=ax, color="#2ECC71")
     ax.set_ylabel("Cost ($)")
@@ -163,7 +170,7 @@ with tabs[2]:
     st.dataframe(job_summary, use_container_width=True)
 
     # Visualization
-    st.markdown("### Offer Acceptance Rate by Job Title")
+    st.markdown("### 📊 Offer Acceptance Rate by Job Title")
     fig, ax = plt.subplots(figsize=(6,3))
     job_summary["offer_acceptance_rate"].sort_values(ascending=False).plot(kind="bar", ax=ax, color="#3498DB")
     ax.set_ylabel("Acceptance Rate")
@@ -172,7 +179,61 @@ with tabs[2]:
     st.pyplot(fig)
 
 # ==========================================================
+# TAB 4 — Overall Efficiency Ranking
+# ==========================================================
+with tabs[3]:
+    st.subheader("Overall Department Efficiency Ranking")
+
+    # Normalize each metric (scale 0–1)
+    norm_df = df.copy()
+    summary = (
+        norm_df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]]
+        .mean()
+        .reset_index()
+    )
+
+    # Normalization (0 = poor, 1 = excellent)
+    summary["time_score"] = 1 - (summary["time_to_hire_days"] - summary["time_to_hire_days"].min()) / (
+        summary["time_to_hire_days"].max() - summary["time_to_hire_days"].min()
+    )
+    summary["cost_score"] = 1 - (summary["cost_per_hire"] - summary["cost_per_hire"].min()) / (
+        summary["cost_per_hire"].max() - summary["cost_per_hire"].min()
+    )
+    summary["accept_score"] = (summary["offer_acceptance_rate"] - summary["offer_acceptance_rate"].min()) / (
+        summary["offer_acceptance_rate"].max() - summary["offer_acceptance_rate"].min()
+    )
+
+    # Combined efficiency score (weighted average)
+    summary["efficiency_score"] = (
+        0.4 * summary["time_score"] +
+        0.3 * summary["cost_score"] +
+        0.3 * summary["accept_score"]
+    )
+
+    summary = summary.sort_values("efficiency_score", ascending=False).reset_index(drop=True)
+
+    st.markdown("""
+    The **Efficiency Score** is a composite metric combining:
+    - 40% Time Efficiency (faster hiring = better)
+    - 30% Cost Efficiency (lower cost = better)
+    - 30% Offer Efficiency (higher acceptance = better)
+    """)
+
+    st.dataframe(summary[["department", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]]
+                 .round(2), use_container_width=True)
+
+    # Visualization: Efficiency Ranking
+    st.markdown("###Efficiency Ranking by Department")
+    fig, ax = plt.subplots(figsize=(7,4))
+    summary.plot(x="department", y="efficiency_score", kind="barh", ax=ax, color="#F1C40F")
+    ax.set_xlabel("Efficiency Score")
+    ax.set_ylabel("Department")
+    ax.invert_yaxis()
+    ax.set_title("Overall Recruitment Efficiency Score by Department")
+    st.pyplot(fig)
+
+# ==========================================================
 # Footer
 # ==========================================================
 st.markdown("---")
-st.caption("Data-Driven Recruitment Efficiency Dashboard (Department, Source, and Job Insights)")
+st.caption("Data-Driven Recruitment Efficiency Dashboard (Department, Source, Job Title, and Overall Efficiency)")
