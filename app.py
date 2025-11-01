@@ -225,20 +225,22 @@ with tab_predict:
                 st.success("Prediction completed successfully.")
 
                 # 🔹 Round all predictions (no decimals)
-                user_df["pred_time_to_hire_days"] = np.round(preds.get("time", np.nan)).astype(int)
-                user_df["pred_cost_per_hire"] = np.round(preds.get("cost", np.nan)).astype(int)
-                user_df["pred_offer_acceptance_rate"] = np.round(preds.get("offer", np.nan), 2)
+user_df["pred_time_to_hire_days"] = np.round(preds.get("time", np.nan)).astype(int)
+user_df["pred_cost_per_hire"] = np.round(preds.get("cost", np.nan)).astype(int)
+user_df["pred_offer_acceptance_rate"] = np.round(preds.get("offer", np.nan), 2)
 
-                # 🔹 Clip negatives (avoid - values)
-                user_df["pred_time_to_hire_days"] = user_df["pred_time_to_hire_days"].clip(lower=0)
-                user_df["pred_cost_per_hire"] = user_df["pred_cost_per_hire"].clip(lower=0)
+# 🔹 Replace negative days with dummy (3 days)
+user_df["pred_time_to_hire_days"] = np.where(
+    user_df["pred_time_to_hire_days"] < 0, 3, user_df["pred_time_to_hire_days"]
+)
 
-                show_cols = [
-                    "department", "source", "job_title",
-                    "pred_time_to_hire_days", "pred_cost_per_hire",
-                    "pred_offer_acceptance_rate"
-                ]
-                st.dataframe(user_df[show_cols].head(20), use_container_width=True)
+# 🔹 Clip negatives for cost
+user_df["pred_cost_per_hire"] = user_df["pred_cost_per_hire"].clip(lower=0)
+
+# 🔹 Add completion date
+import datetime as dt
+today = dt.date.today()
+user_df["pred_hire_completion_date"] = today + pd.to_timedelta(user_df["pred_time_to_hire_days"], unit="D")
 
                 # 🔹 Download prediction
                 csv_buffer = io.BytesIO()
