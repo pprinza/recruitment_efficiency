@@ -249,6 +249,80 @@ with tab_predict:
                     mime="text/csv"
                 )
 
+# ✅ --- FEATURE IMPORTANCE SECTION (AUTO-FIX FOR PIPELINE) ---
+st.subheader("🔍 Feature Importance Overview")
+
+found_any = False
+for key, model in models.items():
+    if model is None:
+        continue
+
+    feature_names = list(user_df.columns)
+    model_inner = None
+
+    # Cek apakah model berupa pipeline
+    if hasattr(model, "named_steps"):
+        # Coba ambil feature names hasil transformasi (OneHotEncoder, ColumnTransformer, dll)
+        if "preprocessor" in model.named_steps:
+            try:
+                preprocessor = model.named_steps["preprocessor"]
+                feature_names = preprocessor.get_feature_names_out()
+                st.caption(f"Using encoded feature names from preprocessor ({len(feature_names)} features).")
+            except Exception:
+                st.caption("⚠️ Could not extract transformed feature names; using raw input columns.")
+        
+        # Temukan step yang punya feature_importances_ atau coef_
+        for step_name, step_obj in model.named_steps.items():
+            if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
+                model_inner = step_obj
+                break
+    else:
+        model_inner = model
+
+    if model_inner is None:
+        continue
+
+    st.write(f"**Model:** {key.upper()}")
+
+    try:
+        if hasattr(model_inner, "feature_importances_"):
+            importances = model_inner.feature_importances_
+        elif hasattr(model_inner, "coef_"):
+            importances = np.abs(model_inner.coef_).flatten()
+        else:
+            st.warning("This model does not expose feature importances or coefficients.")
+            continue
+
+        # Cek kesesuaian panjang
+        if len(importances) != len(feature_names):
+            st.warning(
+                f"⚠️ Feature count mismatch for model '{key}'. "
+                f"Model has {len(importances)} features, but name list has {len(feature_names)}. "
+                f"Feature importance cannot be mapped."
+            )
+            continue
+
+        fi = pd.DataFrame({
+            "Feature": feature_names,
+            "Importance": importances
+        }).sort_values("Importance", ascending=False).head(10)
+
+        # Plot
+        fig, ax = plt.subplots()
+        ax.barh(fi["Feature"], fi["Importance"])
+        ax.set_xlabel("Importance Score")
+        ax.set_ylabel("Feature")
+        ax.invert_yaxis()
+        st.pyplot(fig)
+        st.dataframe(fi, use_container_width=True)
+        st.divider()
+        found_any = True
+
+    except Exception as e:
+        st.error(f"Error extracting feature importance for model '{key}': {e}")
+
+if not found_any:
+    st.info("No valid feature importance or coefficient data found for any model.")
 
 # ----------------------------------------------------------
 # FOOTER / MODEL STATUS
