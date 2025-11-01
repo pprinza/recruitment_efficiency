@@ -1,14 +1,21 @@
 # ==========================================================
 # Recruitment Efficiency Insight Dashboard
-# Created by: NeuraLens
+# ==========================================================
+# Author: NeuraLens
+# Purpose: Data-Driven HR Insight — Department, Source, and Job Title Analysis
 # ==========================================================
 
 import streamlit as st
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
 
-# --- Page setup ---
-st.set_page_config(page_title="Recruitment Efficiency Insight", page_icon="💼", layout="wide")
+# ----------------------------------------------------------
+# Page setup
+# ----------------------------------------------------------
+st.set_page_config(
+    page_title="Recruitment Efficiency Insight",
+    layout="wide"
+)
 
 st.title("Recruitment Efficiency Insight Dashboard")
 st.markdown("""
@@ -18,27 +25,32 @@ contribute most to recruitment efficiency.
 > Focus Metrics: **Time to Hire**, **Cost per Hire**, and **Offer Acceptance Rate**
 """)
 
-# --- Load dataset ---
+# ----------------------------------------------------------
+# Load dataset
+# ----------------------------------------------------------
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv("deployment_retrain_summary_FEv3.csv")
-        df.columns = df.columns.str.strip().str.lower()  # Normalize column names
+        df = pd.read_csv("final_recruitment_data_FEv3.csv")
+        df.columns = df.columns.str.strip().str.lower()
         return df
     except Exception as e:
-        st.error(f"Unable to load data: {e}")
+        st.error(f"Unable to load dataset: {e}")
         return None
 
 df = load_data()
 if df is None:
     st.stop()
 
-# --- Column diagnostic ---
-st.sidebar.subheader("Data Check")
-st.sidebar.write("Detected columns:")
+# Sidebar data check
+st.sidebar.header("Data Info")
+st.sidebar.write("Detected Columns:")
 st.sidebar.write(list(df.columns))
 
-required_cols = ["department", "source", "job_title", "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]
+required_cols = [
+    "department", "source", "job_title",
+    "time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"
+]
 missing = [col for col in required_cols if col not in df.columns]
 
 if missing:
@@ -46,14 +58,16 @@ if missing:
     st.info("Please ensure your CSV has the correct columns.")
     st.stop()
 
-# --- Tabs ---
+# ==========================================================
+# Tabs for analysis
+# ==========================================================
 tabs = st.tabs(["🏢 Department Efficiency", "🔗 Source Effectiveness", "🧩 Job Title Complexity"])
 
 # ==========================================================
 # TAB 1 — Department Analysis
 # ==========================================================
 with tabs[0]:
-    st.subheader("Department Efficiency Overview")
+    st.subheader("🏢 Department Efficiency Overview")
 
     dept_summary = (
         df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate"]]
@@ -75,6 +89,15 @@ with tabs[0]:
 
     st.markdown("### Department Efficiency Metrics")
     st.dataframe(dept_summary, use_container_width=True)
+
+    # Visualization
+    st.markdown("### 📊 Average Time to Hire by Department")
+    fig, ax = plt.subplots(figsize=(6,3))
+    dept_summary["time_to_hire_days"].sort_values().plot(kind="bar", ax=ax)
+    ax.set_ylabel("Days")
+    ax.set_xlabel("Department")
+    ax.set_title("Average Time to Hire by Department")
+    st.pyplot(fig)
 
 # ==========================================================
 # TAB 2 — Source Analysis
@@ -103,6 +126,15 @@ with tabs[1]:
     st.markdown("### Source Efficiency Metrics")
     st.dataframe(src_summary, use_container_width=True)
 
+    # Visualization
+    st.markdown("### Average Cost per Hire by Source")
+    fig, ax = plt.subplots(figsize=(6,3))
+    src_summary["cost_per_hire"].sort_values().plot(kind="bar", ax=ax, color="#2ECC71")
+    ax.set_ylabel("Cost ($)")
+    ax.set_xlabel("Source")
+    ax.set_title("Average Cost per Hire by Source")
+    st.pyplot(fig)
+
 # ==========================================================
 # TAB 3 — Job Title Analysis
 # ==========================================================
@@ -129,6 +161,15 @@ with tabs[2]:
 
     st.markdown("### Job Title Efficiency Metrics")
     st.dataframe(job_summary, use_container_width=True)
+
+    # Visualization
+    st.markdown("### Offer Acceptance Rate by Job Title")
+    fig, ax = plt.subplots(figsize=(6,3))
+    job_summary["offer_acceptance_rate"].sort_values(ascending=False).plot(kind="bar", ax=ax, color="#3498DB")
+    ax.set_ylabel("Acceptance Rate")
+    ax.set_xlabel("Job Title")
+    ax.set_title("Average Offer Acceptance Rate by Job Title")
+    st.pyplot(fig)
 
 # ==========================================================
 # Footer
