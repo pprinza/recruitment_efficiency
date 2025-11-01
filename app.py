@@ -10,7 +10,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from datetime import datetime
 
 # ----------------------------------------------------------
 # PAGE CONFIGURATION
@@ -30,13 +29,13 @@ departments, sources, and job roles. It uses three key metrics:
 # ----------------------------------------------------------
 # MODEL HANDLING
 # ----------------------------------------------------------
-MODEL_DIR = "retrain_outputs"
-
+MODEL_DIR = "."
 MODEL_FILES = {
-    "time_to_hire_days": "model_time_to_hire_days_FEv3.pkl",
-    "cost_per_hire": "model_cost_per_hire_FEv3.pkl",
-    "offer_acceptance_rate": "model_offer_acceptance_rate_FEv3.pkl",
+    "time": "model_time_to_hire_days_FEv3.pkl",
+    "cost": "model_cost_per_hire_FEv3.pkl",
+    "offer": "model_offer_acceptance_rate_FEv3.pkl",
 }
+
 
 @st.cache_resource
 def load_models():
@@ -47,13 +46,13 @@ def load_models():
         if os.path.exists(path):
             try:
                 models[key] = joblib.load(path)
-            except Exception as e:
-                st.warning(f"⚠️ Could not load {fname}: {e}")
+            except Exception:
                 models[key] = None
         else:
             models[key] = None
             missing.append(fname)
     return models, missing
+
 
 models, missing_models = load_models()
 models_available = any(m is not None for m in models.values())
@@ -67,6 +66,7 @@ def load_data():
         return pd.read_csv("final_recruitment_data_FEv3.csv")
     else:
         return None
+
 
 base_df = load_data()
 
@@ -92,6 +92,7 @@ def compute_efficiency(df):
         0.4 * df["time_score"] + 0.3 * df["cost_score"] + 0.3 * df["accept_score"]
     )
     return df
+
 
 # ----------------------------------------------------------
 # CREATE TABS
@@ -138,75 +139,114 @@ with tab_exec:
         col3.metric("Most Efficient Source", src_best.index[0])
 
 # ----------------------------------------------------------
-# TAB 6: BATCH PREDICTION — CSV Upload + Download Result
+# DEPARTMENT EFFICIENCY
+# ----------------------------------------------------------
+with tab_dept:
+    st.header("Department Efficiency Overview")
+    if base_df is not None:
+        df = compute_efficiency(base_df)
+        dept_summary = (
+            df.groupby("department")[["time_to_hire_days", "cost_per_hire",
+                                      "offer_acceptance_rate", "efficiency_score"]]
+            .mean()
+            .sort_values("efficiency_score", ascending=False)
+        )
+        st.dataframe(dept_summary.reset_index(), use_container_width=True, hide_index=True)
+
+# ----------------------------------------------------------
+# SOURCE EFFICIENCY
+# ----------------------------------------------------------
+with tab_source:
+    st.header("Source Efficiency Overview")
+    if base_df is not None:
+        df = compute_efficiency(base_df)
+        src_summary = (
+            df.groupby("source")[["time_to_hire_days", "cost_per_hire",
+                                  "offer_acceptance_rate", "efficiency_score"]]
+            .mean()
+            .sort_values("efficiency_score", ascending=False)
+        )
+        st.dataframe(src_summary.reset_index(), use_container_width=True, hide_index=True)
+
+# ----------------------------------------------------------
+# JOB ROLE EFFICIENCY
+# ----------------------------------------------------------
+with tab_job:
+    st.header("Job Role Efficiency Overview")
+    if base_df is not None:
+        df = compute_efficiency(base_df)
+        job_summary = (
+            df.groupby("job_title")[["time_to_hire_days", "cost_per_hire",
+                                     "offer_acceptance_rate", "efficiency_score"]]
+            .mean()
+            .sort_values("efficiency_score", ascending=False)
+        )
+        st.dataframe(job_summary.reset_index(), use_container_width=True, hide_index=True)
+
+# ----------------------------------------------------------
+# TOP 10 MOST EFFICIENT RECRUITMENTS
+# ----------------------------------------------------------
+with tab_top10:
+    st.header("Top 10 Most Efficient Recruitments")
+    if base_df is not None:
+        df = compute_efficiency(base_df)
+        top10 = df.sort_values("efficiency_score", ascending=False).head(10)
+        st.dataframe(
+            top10[["department", "source", "job_title",
+                   "time_to_hire_days", "cost_per_hire",
+                   "offer_acceptance_rate", "efficiency_score"]],
+            use_container_width=True, hide_index=True,
+        )
+
+# ----------------------------------------------------------
+# BATCH PREDICTION TAB
 # ----------------------------------------------------------
 with tab_predict:
-    st.header("Batch Prediction — Predict Recruitment KPIs from CSV")
+    st.header("Batch Prediction (Upload CSV)")
+    st.write("Upload your recruitment dataset to predict Time to Hire, Cost per Hire, and Offer Acceptance Rate.")
 
-    uploaded_file = st.file_uploader("📤 Upload your recruitment dataset (CSV)", type=["csv"])
+    uploaded = st.file_uploader("Upload CSV", type=["csv"])
 
-    if uploaded_file is not None:
-        data = pd.read_csv(uploaded_file)
-        st.subheader("📊 Data Preview")
-        st.dataframe(data.head(), use_container_width=True)
+    if uploaded is not None:
+        user_df = pd.read_csv(uploaded)
+        st.subheader("Data Preview")
+        st.dataframe(user_df.head(), use_container_width=True)
 
+        # try model prediction
         if models_available:
-            try:
-                with st.spinner("Running predictions... Please wait."):
-                    # Jalankan prediksi untuk tiap model
-                    data["pred_time_to_hire_days"] = models["time_to_hire_days"].predict(data)
-                    data["pred_cost_per_hire"] = models["cost_per_hire"].predict(data)
-                    data["pred_offer_acceptance_rate"] = models["offer_acceptance_rate"].predict(data)
+            preds = {}
+            for key, model in models.items():
+                if model is not None:
+                    try:
+                        preds[key] = model.predict(user_df)
+                    except Exception as e:
+                        preds[key] = None
+                        st.warning(f"Model '{key}' failed: {e}")
 
-                st.success("✅ Prediction completed successfully!")
+            if any(v is not None for v in preds.values()):
+                st.success("Prediction completed successfully.")
+                user_df["pred_time_to_hire_days"] = preds.get("time", np.nan)
+                user_df["pred_cost_per_hire"] = preds.get("cost", np.nan)
+                user_df["pred_offer_acceptance_rate"] = preds.get("offer", np.nan)
 
-                # Kolom hasil utama
-                display_cols = [
+                show_cols = [
                     "department", "source", "job_title",
-                    "pred_time_to_hire_days", "pred_cost_per_hire", "pred_offer_acceptance_rate"
+                    "pred_time_to_hire_days", "pred_cost_per_hire",
+                    "pred_offer_acceptance_rate"
                 ]
-
-                st.subheader("📈 Prediction Results")
-                st.dataframe(data[display_cols].head(15), use_container_width=True)
-
-                # Ringkasan
-                st.subheader("📊 Summary Statistics (Predictions)")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Avg Predicted Time to Hire (days)", f"{data['pred_time_to_hire_days'].mean():.1f}")
-                col2.metric("Avg Predicted Cost per Hire ($)", f"{data['pred_cost_per_hire'].mean():,.0f}")
-                col3.metric("Avg Predicted Offer Acceptance Rate (%)", f"{data['pred_offer_acceptance_rate'].mean() * 100:.1f}%")
-
-                # Feature Importance
-                st.subheader("🔍 Feature Importance Summary")
-                for key, model in models.items():
-                    if hasattr(model, "feature_importances_"):
-                        imp_df = pd.DataFrame({
-                            "Feature": model.feature_names_in_,
-                            "Importance": model.feature_importances_
-                        }).sort_values("Importance", ascending=False)
-                        st.markdown(f"**Model: {key}**")
-                        st.bar_chart(imp_df.set_index("Feature"))
-
-                # --- 🔽 DOWNLOAD BUTTON ---
-                st.divider()
-                st.subheader("💾 Download Predicted Results")
-
-                # Generate nama file dinamis
-                date_str = datetime.now().strftime("%Y%m%d_%H%M")
-                csv_name = f"recruitment_predictions_{date_str}.csv"
-
-                csv_data = data[display_cols].to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="⬇️ Download Prediction Results (CSV)",
-                    data=csv_data,
-                    file_name=csv_name,
-                    mime="text/csv"
-                )
-                st.caption(f"File: `{csv_name}` generated successfully.")
-
-            except Exception as e:
-                st.error(f"Prediction failed: {e}")
+                st.dataframe(user_df[show_cols].head(20), use_container_width=True)
+            else:
+                st.error("All models failed to predict. Please check feature columns or model format.")
         else:
-            st.warning("⚠️ Model files not found in 'retrain_outputs/'. Please check your repository.")
-    else:
-        st.info("Upload a CSV file to run batch predictions.")
+            st.warning("No model files found (.pkl). Only efficiency score will be shown.")
+            df_eff = compute_efficiency(user_df)
+            st.dataframe(df_eff.head(), use_container_width=True)
+
+# ----------------------------------------------------------
+# FOOTER / MODEL STATUS
+# ----------------------------------------------------------
+st.divider()
+if missing_models:
+    st.info(f"Missing model files: {missing_models}")
+else:
+    st.caption("All model files loaded successfully.")
