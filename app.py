@@ -1,35 +1,21 @@
-# ==========================================================
-# Recruitment Efficiency Insight Dashboard (Final Clean Version)
-# ==========================================================
-# Author: NeuraLens
-# Purpose: Dashboard for recruitment analytics & prediction
-# ==========================================================
-
+# recruitment_dashboard_final.py
 import os
+import io
+import datetime as dt
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import io
 
 # ----------------------------------------------------------
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ----------------------------------------------------------
 st.set_page_config(page_title="Recruitment Efficiency Dashboard", layout="wide")
 st.title("Recruitment Efficiency Insight Dashboard")
 
-st.markdown("""
-Analyze and predict recruitment efficiency across departments, sources, and job roles
-using AI-powered metrics.
-
-**Key KPIs:**
-- Time to Hire
-- Cost per Hire
-- Offer Acceptance Rate
-""")
-
 # ----------------------------------------------------------
-# MODEL HANDLING
+# MODEL FILES (sesuaikan jika perlu)
 # ----------------------------------------------------------
 MODEL_DIR = "."
 MODEL_FILES = {
@@ -47,7 +33,8 @@ def load_models():
         if os.path.exists(path):
             try:
                 models[key] = joblib.load(path)
-            except Exception:
+            except Exception as e:
+                st.warning(f"Failed to load model file {fname}: {e}")
                 models[key] = None
         else:
             models[key] = None
@@ -58,19 +45,18 @@ models, missing_models = load_models()
 models_available = any(m is not None for m in models.values())
 
 # ----------------------------------------------------------
-# LOAD DATA
+# Load default dataset (opsional)
 # ----------------------------------------------------------
 @st.cache_data
 def load_data():
     if os.path.exists("final_recruitment_data_FEv3.csv"):
         return pd.read_csv("final_recruitment_data_FEv3.csv")
-    else:
-        return None
+    return None
 
 base_df = load_data()
 
 # ----------------------------------------------------------
-# EFFICIENCY SCORE CALCULATION
+# Utility: compute efficiency
 # ----------------------------------------------------------
 def compute_efficiency(df):
     df = df.copy()
@@ -78,24 +64,22 @@ def compute_efficiency(df):
         if metric not in df.columns:
             df[metric] = np.nan
 
-    df["time_score"] = 1 - (df["time_to_hire_days"] - df["time_to_hire_days"].min()) / (
-        df["time_to_hire_days"].max() - df["time_to_hire_days"].min()
-    )
-    df["cost_score"] = 1 - (df["cost_per_hire"] - df["cost_per_hire"].min()) / (
-        df["cost_per_hire"].max() - df["cost_per_hire"].min()
-    )
-    df["accept_score"] = (df["offer_acceptance_rate"] - df["offer_acceptance_rate"].min()) / (
-        df["offer_acceptance_rate"].max() - df["offer_acceptance_rate"].min()
-    )
-    df["efficiency_score"] = (
-        0.4 * df["time_score"] + 0.3 * df["cost_score"] + 0.3 * df["accept_score"]
-    )
+    # avoid division by zero when min==max
+    def safe_scale(s):
+        if s.max() - s.min() == 0:
+            return pd.Series(0.5, index=s.index)
+        return (s - s.min()) / (s.max() - s.min())
+
+    df["time_score"] = 1 - safe_scale(df["time_to_hire_days"])
+    df["cost_score"] = 1 - safe_scale(df["cost_per_hire"])
+    df["accept_score"] = safe_scale(df["offer_acceptance_rate"])
+    df["efficiency_score"] = 0.4 * df["time_score"] + 0.3 * df["cost_score"] + 0.3 * df["accept_score"]
     return df
 
 # ----------------------------------------------------------
-# CREATE TABS
+# Tabs
 # ----------------------------------------------------------
-tab_exec, tab_dept, tab_source, tab_job, tab_top10, tab_predict, tab_importance = st.tabs([
+tabs = st.tabs([
     "Executive Summary",
     "Department Efficiency",
     "Source Efficiency",
@@ -104,21 +88,20 @@ tab_exec, tab_dept, tab_source, tab_job, tab_top10, tab_predict, tab_importance 
     "Batch Prediction",
     "Feature Importance"
 ])
+tab_exec, tab_dept, tab_source, tab_job, tab_top10, tab_predict, tab_importance = tabs
 
 # ----------------------------------------------------------
-# EXECUTIVE SUMMARY
+# Executive Summary
 # ----------------------------------------------------------
 with tab_exec:
     st.header("Recruitment KPI — Executive Overview")
-
     if base_df is None:
         st.warning("Default dataset not found. Please upload via Batch Prediction tab.")
     else:
         df = compute_efficiency(base_df)
-
-        avg_time = int(df["time_to_hire_days"].mean())
-        avg_cost = int(df["cost_per_hire"].mean())
-        avg_accept = round(df["offer_acceptance_rate"].mean() * 100)
+        avg_time = int(df["time_to_hire_days"].mean()) if not df["time_to_hire_days"].isna().all() else "N/A"
+        avg_cost = int(df["cost_per_hire"].mean()) if not df["cost_per_hire"].isna().all() else "N/A"
+        avg_accept = int(df["offer_acceptance_rate"].mean() * 100) if not df["offer_acceptance_rate"].isna().all() else "N/A"
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Average Time to Hire (days)", f"{avg_time}")
@@ -126,84 +109,55 @@ with tab_exec:
         c3.metric("Offer Acceptance Rate (%)", f"{avg_accept}%")
 
         st.divider()
-
         st.subheader("Most Efficient Highlights")
-        dept_best = df.groupby("department")["efficiency_score"].mean().sort_values(ascending=False)
-        src_best = df.groupby("source")["efficiency_score"].mean().sort_values(ascending=False)
-        job_best = df.groupby("job_title")["efficiency_score"].mean().sort_values(ascending=False)
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Top Department", dept_best.index[0])
-        col2.metric("Top Job Title", job_best.index[0])
-        col3.metric("Top Source", src_best.index[0])
+        try:
+            dept_best = df.groupby("department")["efficiency_score"].mean().sort_values(ascending=False)
+            src_best = df.groupby("source")["efficiency_score"].mean().sort_values(ascending=False)
+            job_best = df.groupby("job_title")["efficiency_score"].mean().sort_values(ascending=False)
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Top Department", dept_best.index[0])
+            col2.metric("Top Job Title", job_best.index[0])
+            col3.metric("Top Source", src_best.index[0])
+        except Exception:
+            st.info("Not enough data to compute highlights.")
 
 # ----------------------------------------------------------
-# DEPARTMENT EFFICIENCY
+# Department, Source, Job tabs
 # ----------------------------------------------------------
 with tab_dept:
     st.header("Department Efficiency Overview")
     if base_df is not None:
         df = compute_efficiency(base_df)
-        dept_summary = (
-            df.groupby("department")[["time_to_hire_days", "cost_per_hire",
-                                      "offer_acceptance_rate", "efficiency_score"]]
-            .mean()
-            .sort_values("efficiency_score", ascending=False)
-        )
+        dept_summary = df.groupby("department")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
         st.dataframe(dept_summary.reset_index(), use_container_width=True, hide_index=True)
 
-# ----------------------------------------------------------
-# SOURCE EFFICIENCY
-# ----------------------------------------------------------
 with tab_source:
     st.header("Source Efficiency Overview")
     if base_df is not None:
         df = compute_efficiency(base_df)
-        src_summary = (
-            df.groupby("source")[["time_to_hire_days", "cost_per_hire",
-                                  "offer_acceptance_rate", "efficiency_score"]]
-            .mean()
-            .sort_values("efficiency_score", ascending=False)
-        )
+        src_summary = df.groupby("source")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
         st.dataframe(src_summary.reset_index(), use_container_width=True, hide_index=True)
 
-# ----------------------------------------------------------
-# JOB ROLE EFFICIENCY
-# ----------------------------------------------------------
 with tab_job:
     st.header("Job Role Efficiency Overview")
     if base_df is not None:
         df = compute_efficiency(base_df)
-        job_summary = (
-            df.groupby("job_title")[["time_to_hire_days", "cost_per_hire",
-                                     "offer_acceptance_rate", "efficiency_score"]]
-            .mean()
-            .sort_values("efficiency_score", ascending=False)
-        )
+        job_summary = df.groupby("job_title")[["time_to_hire_days", "cost_per_hire", "offer_acceptance_rate", "efficiency_score"]].mean().sort_values("efficiency_score", ascending=False)
         st.dataframe(job_summary.reset_index(), use_container_width=True, hide_index=True)
 
-# ----------------------------------------------------------
-# TOP 10 MOST EFFICIENT
-# ----------------------------------------------------------
 with tab_top10:
     st.header("Top 10 Most Efficient Recruitments")
     if base_df is not None:
         df = compute_efficiency(base_df)
         top10 = df.sort_values("efficiency_score", ascending=False).head(10)
-        st.dataframe(
-            top10[["department", "source", "job_title",
-                   "time_to_hire_days", "cost_per_hire",
-                   "offer_acceptance_rate", "efficiency_score"]],
-            use_container_width=True, hide_index=True,
-        )
+        st.dataframe(top10[["department","source","job_title","time_to_hire_days","cost_per_hire","offer_acceptance_rate","efficiency_score"]], use_container_width=True, hide_index=True)
 
 # ----------------------------------------------------------
-# BATCH PREDICTION TAB
+# Batch Prediction
 # ----------------------------------------------------------
 with tab_predict:
     st.header("Batch Prediction (Upload CSV)")
     st.write("Upload your dataset to predict Time to Hire, Cost per Hire, and Offer Acceptance Rate.")
-
     uploaded = st.file_uploader("Upload CSV", type=["csv"])
 
     if uploaded is not None:
@@ -219,69 +173,121 @@ with tab_predict:
                         preds[key] = model.predict(user_df)
                     except Exception as e:
                         preds[key] = None
-                        st.warning(f"Model '{key}' failed: {e}")
+                        st.warning(f"Model '{key}' prediction failed: {e}")
 
             if any(v is not None for v in preds.values()):
                 st.success("Prediction completed successfully.")
 
-                # 🔹 Round all predictions (no decimals)
-user_df["pred_time_to_hire_days"] = np.round(preds.get("time", np.nan)).astype(int)
-user_df["pred_cost_per_hire"] = np.round(preds.get("cost", np.nan)).astype(int)
-user_df["pred_offer_acceptance_rate"] = np.round(preds.get("offer", np.nan), 2)
+                # SAFE extraction & rounding (no decimals)
+                # TIME predictions
+                time_preds = preds.get("time")
+                if time_preds is not None:
+                    time_s = pd.Series(time_preds).round()
+                else:
+                    time_s = pd.Series([np.nan] * len(user_df))
 
-# 🔹 Replace negative days with dummy (3 days)
-user_df["pred_time_to_hire_days"] = np.where(
-    user_df["pred_time_to_hire_days"] < 0, 3, user_df["pred_time_to_hire_days"]
-)
+                # COST predictions
+                cost_preds = preds.get("cost")
+                if cost_preds is not None:
+                    cost_s = pd.Series(cost_preds).round()
+                else:
+                    cost_s = pd.Series([np.nan] * len(user_df))
 
-# 🔹 Clip negatives for cost
-user_df["pred_cost_per_hire"] = user_df["pred_cost_per_hire"].clip(lower=0)
+                # OFFER predictions (rate) -> round 2 decimals for readability, but keep as float
+                offer_preds = preds.get("offer")
+                if offer_preds is not None:
+                    offer_s = pd.Series(offer_preds).round(2)
+                else:
+                    offer_s = pd.Series([np.nan] * len(user_df))
 
-# 🔹 Add completion date
-import datetime as dt
-today = dt.date.today()
-user_df["pred_hire_completion_date"] = today + pd.to_timedelta(user_df["pred_time_to_hire_days"], unit="D")
+                # Replace negative time with dummy minimal (3 days)
+                time_s = time_s.apply(lambda x: 3 if pd.notna(x) and x < 0 else x)
 
-                # 🔹 Download prediction
-                csv_buffer = io.BytesIO()
-                user_df.to_csv(csv_buffer, index=False)
-                st.download_button(
-                    label="📥 Download Prediction Results (CSV)",
-                    data=csv_buffer.getvalue(),
-                    file_name="prediction_results.csv",
-                    mime="text/csv"
-                )
+                # Clip cost to >=0
+                cost_s = cost_s.apply(lambda x: 0 if pd.notna(x) and x < 0 else x)
+
+                # Convert to nullable integer for display where possible
+                try:
+                    user_df["pred_time_to_hire_days"] = time_s.astype("Int64")
+                except Exception:
+                    # fallback to float if Int64 conversion fails
+                    user_df["pred_time_to_hire_days"] = time_s
+
+                try:
+                    user_df["pred_cost_per_hire"] = cost_s.astype("Int64")
+                except Exception:
+                    user_df["pred_cost_per_hire"] = cost_s
+
+                user_df["pred_offer_acceptance_rate"] = offer_s
+
+                # Add predicted completion date only where time exists (keeps NaT if no prediction)
+                comp_dates = pd.Series([pd.NaT] * len(user_df), dtype="datetime64[ns]")
+                mask = pd.notna(user_df["pred_time_to_hire_days"])
+                if mask.any():
+                    today = pd.Timestamp(dt.date.today())
+                    # ensure integer days
+                    days_int = user_df.loc[mask, "pred_time_to_hire_days"].astype(int)
+                    comp_dates.loc[mask] = today + pd.to_timedelta(days_int, unit="D")
+                user_df["pred_hire_completion_date"] = comp_dates
+
+                # Show top rows
+                show_cols = [
+                    "department", "source", "job_title",
+                    "pred_time_to_hire_days", "pred_hire_completion_date",
+                    "pred_cost_per_hire", "pred_offer_acceptance_rate"
+                ]
+                # Only show columns that actually exist in user_df
+                show_cols = [c for c in show_cols if c in user_df.columns]
+                st.dataframe(user_df[show_cols].head(20), use_container_width=True)
+
+                # Download button (CSV)
+                try:
+                    csv_buffer = io.BytesIO()
+                    user_df.to_csv(csv_buffer, index=False)
+                    st.download_button(
+                        label="📥 Download Prediction Results (CSV)",
+                        data=csv_buffer.getvalue(),
+                        file_name="prediction_results.csv",
+                        mime="text/csv"
+                    )
+                except Exception as e:
+                    st.error(f"Failed to prepare download: {e}")
+
             else:
-                st.error("All models failed to predict.")
+                st.error("All models failed to predict. Please check input features and model format.")
         else:
             st.warning("No model files found (.pkl). Please check deployment directory.")
 
 # ----------------------------------------------------------
-# FEATURE IMPORTANCE TAB
+# Feature Importance Tab (table only)
 # ----------------------------------------------------------
 with tab_importance:
     st.header("Feature Importance Overview")
-
     found_any = False
+
     for key, model in models.items():
         if model is None:
             continue
 
-        feature_names = []
+        # default: raw input columns (if no encoder discovered)
+        feature_names = None
         model_inner = None
 
-        # --- Detect encoder step automatically
+        # If pipeline, attempt to detect encoder / transformer that can output names
         if hasattr(model, "named_steps"):
+            # try to extract encoder/transformer feature names automatically
             for step_name, step_obj in model.named_steps.items():
                 if hasattr(step_obj, "get_feature_names_out"):
                     try:
-                        feature_names = step_obj.get_feature_names_out()
+                        fnames = step_obj.get_feature_names_out()
+                        # ensure list of strings
+                        feature_names = [str(x) for x in fnames]
                         st.caption(f"🧩 Extracted encoded feature names from '{step_name}' ({len(feature_names)} features).")
                         break
                     except Exception:
-                        pass
+                        feature_names = None
 
-            # Find final model
+            # find final estimator step that exposes importances or coef
             for step_name, step_obj in model.named_steps.items():
                 if hasattr(step_obj, "feature_importances_") or hasattr(step_obj, "coef_"):
                     model_inner = step_obj
@@ -296,38 +302,53 @@ with tab_importance:
 
         try:
             if hasattr(model_inner, "feature_importances_"):
-                importances = model_inner.feature_importances_
+                importances = np.array(model_inner.feature_importances_)
             elif hasattr(model_inner, "coef_"):
-                importances = np.abs(model_inner.coef_).flatten()
+                importances = np.abs(np.array(model_inner.coef_)).flatten()
             else:
-                st.warning("Model does not provide feature importance.")
+                st.warning("Model does not provide feature importance or coefficients.")
                 continue
 
+            # if feature names not detected from encoder, fall back to saved 'feature_names_in_' if present
+            if feature_names is None:
+                if hasattr(model_inner, "feature_names_in_"):
+                    try:
+                        feature_names = [str(x) for x in model_inner.feature_names_in_]
+                        st.caption(f"Using feature_names_in_ from estimator ({len(feature_names)} features).")
+                    except Exception:
+                        feature_names = None
+
+            # if still None, attempt to use base_df or user_df column names if available
+            if feature_names is None:
+                if base_df is not None:
+                    feature_names = list(base_df.columns)
+                    st.caption(f"Falling back to base dataset columns ({len(feature_names)} features).")
+                else:
+                    st.warning("Cannot determine feature names for mapping importances — no base dataset available.")
+                    continue
+
+            # Check lengths
             if len(importances) != len(feature_names):
-                st.warning(f"⚠️ Feature count mismatch for model '{key}'. Cannot display table.")
+                st.warning(f"⚠️ Feature count mismatch for model '{key}'. Model has {len(importances)} features, but name list has {len(feature_names)}. Cannot display table.")
                 continue
 
-            fi = (
-                pd.DataFrame({
-                    "Feature": feature_names,
-                    "Importance": importances
-                })
-                .sort_values("Importance", ascending=False)
-                .head(15)
-            )
+            fi = pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": importances
+            }).sort_values("Importance", ascending=False).head(15)
 
-            st.dataframe(fi, use_container_width=True, hide_index=True)
+            st.dataframe(fi.reset_index(drop=True), use_container_width=True, hide_index=True)
             found_any = True
             st.divider()
 
         except Exception as e:
-            st.error(f"Error reading feature importance for model '{key}': {e}")
+            st.error(f"Error extracting feature importance for model '{key}': {e}")
 
     if not found_any:
-        st.info("No valid feature importance data found.")
+        st.info("No valid feature importance data found for any loaded model.")
 
 # ----------------------------------------------------------
-# FOOTER / MODEL STATUS
+# Footer: model load status
 # ----------------------------------------------------------
 st.divider()
 if missing_models:
