@@ -199,70 +199,81 @@ with tab_top10:
         )
 
 # ==========================================================
-# BATCH PREDICTION TAB
+# BATCH PREDICTION TAB 
 # ==========================================================
 with tab_predict:
     st.header("Batch Prediction — Recruitment Outcome Estimator")
-    st.markdown("Gunakan model untuk memprediksi hasil berdasarkan *department*, *source*, dan *job title* yang dipilih.")
+    st.markdown("""
+    Gunakan model untuk memprediksi hasil berdasarkan **department**, **source**, dan **job title** yang dipilih.
+    Prediksi mencakup tiga metrik utama:
+    - Time to Hire (days)
+    - Cost per Hire ($)
+    - Offer Acceptance Rate (%)
+    """)
 
-    # Pastikan model tersedia
     if not models_available:
         st.error("Model file (.pkl) tidak ditemukan. Silakan unggah model terlebih dahulu ke repository GitHub.")
     else:
-        # Dropdown untuk input user
+        # Dropdown interaktif
         dept_list = sorted(df['department'].dropna().unique())
-        source_list = sorted(df['source'].dropna().unique())
-        job_list = sorted(df['job_title'].dropna().unique())
+        selected_dept = st.selectbox("Pilih Department", dept_list)
 
-        col1, col2, col3 = st.columns(3)
-        selected_dept = col1.selectbox("Pilih Department", dept_list)
-        selected_source = col2.selectbox("Pilih Source", source_list)
-        selected_job = col3.selectbox("Pilih Job Title", job_list)
+        filtered_sources = df[df['department'] == selected_dept]['source'].unique()
+        selected_source = st.selectbox("Pilih Source", sorted(filtered_sources))
 
-        # Tombol prediksi
+        filtered_jobs = df[df['department'] == selected_dept]['job_title'].unique()
+        selected_job = st.selectbox("Pilih Job Title", sorted(filtered_jobs))
+
         if st.button("Run Prediction"):
             try:
-                # Gunakan mean sebagai template agar stabil
-                subset = df[(df['department'] == selected_dept) & 
-            (df['source'] == selected_source) & 
-            (df['job_title'] == selected_job)]
+                # Gunakan subset data sesuai kombinasi user
+                subset = df[
+                    (df['department'] == selected_dept) &
+                    (df['source'] == selected_source) &
+                    (df['job_title'] == selected_job)
+                ]
 
-if subset.empty:
-    subset = df[(df['department'] == selected_dept) & (df['source'] == selected_source)]
+                # fallback ke subset yang lebih luas kalau data kosong
+                if subset.empty:
+                    subset = df[
+                        (df['department'] == selected_dept) &
+                        (df['source'] == selected_source)
+                    ]
+                if subset.empty:
+                    subset = df[
+                        (df['department'] == selected_dept)
+                    ]
+                if subset.empty:
+                    subset = df.copy()
 
-if subset.empty:
-    subset = df.copy()
-
-input_data = subset.mean(numeric_only=True).to_frame().T
-input_data["department"] = selected_dept
-input_data["source"] = selected_source
-input_data["job_title"] = selected_job
-
-
-                # Tambahkan kolom kategorikal sesuai input user
+                # ambil rata-rata numerik sebagai input template
+                input_data = subset.mean(numeric_only=True).to_frame().T
                 input_data["department"] = selected_dept
                 input_data["source"] = selected_source
                 input_data["job_title"] = selected_job
 
-                # Pastikan kolom input sesuai dengan data training
+                # pastikan kolom sesuai urutan df asli
                 input_data = input_data.reindex(columns=df.columns, fill_value=0)
 
-                # Jalankan prediksi
+                # lakukan prediksi
                 pred_time = models["time"].predict(input_data)[0]
                 pred_cost = models["cost"].predict(input_data)[0]
                 pred_offer = models["offer"].predict(input_data)[0]
 
-                # Bersihkan nilai agar tidak negatif atau melebihi 1
+                # batasi agar tidak negatif
                 pred_time = np.clip(pred_time, 0, None)
                 pred_cost = np.clip(pred_cost, 0, None)
                 pred_offer = np.clip(pred_offer, 0, 1)
 
-                # Tampilkan hasil prediksi
+                # tampilkan hasil
                 st.success("Prediction completed successfully.")
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Predicted Time to Hire (days)", f"{pred_time:.1f}")
                 col2.metric("Predicted Cost per Hire ($)", f"{pred_cost:,.0f}")
                 col3.metric("Predicted Offer Acceptance Rate (%)", f"{pred_offer*100:.1f}%")
+
+                # tambahkan info kombinasi data
+                st.markdown(f"**Input combination used:** {selected_dept} / {selected_source} / {selected_job}")
 
             except Exception as e:
                 st.error(f"Gagal menjalankan prediksi: {e}")
