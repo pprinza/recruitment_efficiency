@@ -30,6 +30,20 @@ departments, sources, and job roles. It uses three key metrics:
 # MODEL HANDLING
 # ----------------------------------------------------------
 MODEL_DIR = "."
+MODEL_DIR = "retrain_outputs"
+
+import os
+import joblib
+
+models = {}
+try:
+    models["time_to_hire_days"] = joblib.load(os.path.join(MODEL_DIR, "model_time_to_hire_days_FEv3.pkl"))
+    models["cost_per_hire"] = joblib.load(os.path.join(MODEL_DIR, "model_cost_per_hire_FEv3.pkl"))
+    models["offer_acceptance_rate"] = joblib.load(os.path.join(MODEL_DIR, "model_offer_acceptance_rate_FEv3.pkl"))
+    print("✅ All models loaded successfully.")
+except Exception as e:
+    print("❌ Error loading model files:", e)
+
 MODEL_FILES = {
     "time": "model_time_to_hire_days_FEv3.pkl",
     "cost": "model_cost_per_hire_FEv3.pkl",
